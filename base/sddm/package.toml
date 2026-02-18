@@ -1,0 +1,69 @@
+[package]
+name = "sddm"
+version = "0.21.0.2"
+description = "QML based X11 and Wayland display manager (Artix PKGBUILD derived)"
+depends = [
+    "qt5-base",
+    "qt5-declarative",
+    "qt6-base",
+    "qt6-declarative"
+]
+
+[build]
+source = "https://github.com/sddm/sddm/archive/v0.21.0/sddm-0.21.0.tar.gz"
+checksum = "f895de2683627e969e4849dbfbbb2b500787481ca5ba0de6d6dfdae5f1549abf"
+build_deps = [
+    "cmake",
+    "extra-cmake-modules",
+    "python-docutils",
+    "qt5-base",
+    "qt5-declarative",
+    "qt5-tools",
+    "qt6-declarative",
+    "qt6-tools",
+    "ninja"
+]
+script = """
+set -e
+
+JOBS="${PEACOCK_JOBS:-}"
+if [ -z "$JOBS" ]; then
+    if command -v nproc >/dev/null 2>&1; then
+        JOBS="$(nproc)"
+    else
+        JOBS=1
+    fi
+fi
+export CMAKE_BUILD_PARALLEL_LEVEL="$JOBS"
+
+cmake -B build -S . \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCMAKE_INSTALL_LIBEXECDIR=/usr/lib/sddm \
+    -DBUILD_WITH_QT6=ON \
+    -DDBUS_CONFIG_DIR=/usr/share/dbus-1/system.d \
+    -DDBUS_CONFIG_FILENAME=sddm_org.freedesktop.DisplayManager.conf \
+    -DBUILD_MAN_PAGES=ON \
+    -DUSE_ELOGIND=yes \
+    -DNO_SYSTEMD=yes \
+    -DUID_MAX=60513 \
+    -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+cmake --build build -j "$JOBS"
+
+cmake -B build5 -S . \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+cmake --build build5/src/greeter -j "$JOBS"
+cmake --build build5/components -j "$JOBS"
+
+DESTDIR="$PWD/stage" cmake --install build
+DESTDIR="$PWD/stage" cmake --install build5/src/greeter
+DESTDIR="$PWD/stage" cmake --install build5/components
+
+install -d "$PWD/stage"/usr/lib/sddm/sddm.conf.d
+"$PWD"/stage/usr/bin/sddm --example-config > "$PWD"/stage/usr/lib/sddm/sddm.conf.d/default.conf
+sed -r 's|DefaultPath=.*|DefaultPath=/usr/local/sbin:/usr/local/bin:/usr/bin|g' -i "$PWD"/stage/usr/lib/sddm/sddm.conf.d/default.conf
+sed -e "/^InputMethod/s/qtvirtualkeyboard//" -i "$PWD"/stage/usr/lib/sddm/sddm.conf.d/default.conf
+
+install -Dm644 sddm.sysusers "$PWD"/stage/usr/lib/sysusers.d/sddm.conf
+install -Dm644 sddm.tmpfiles "$PWD"/stage/usr/lib/tmpfiles.d/sddm.conf
+"""

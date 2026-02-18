@@ -1,0 +1,7 @@
+builddir/
+build/
+*.json
+*.jsonc
+*.bak
+art/
+.vscode*

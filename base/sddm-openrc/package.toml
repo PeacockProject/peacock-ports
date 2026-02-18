@@ -1,0 +1,14 @@
+[package]
+name = "sddm-openrc"
+version = "20260215"
+description = "OpenRC sddm init script (Artix)"
+
+[build]
+source = ""
+checksum = ""
+script = """
+set -e
+
+install -Dm755 sddm.initd "$PWD/stage/etc/init.d/sddm"
+install -Dm644 sddm.pam "$PWD/stage/etc/pam.d/sddm"
+"""

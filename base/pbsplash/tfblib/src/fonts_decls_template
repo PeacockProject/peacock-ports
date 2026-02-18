@@ -1,0 +1,7 @@
+
+#include "@CMAKE_CURRENT_SOURCE_DIR@/src/font.h"
+
+@font_decls@
+
+static const struct font_file *__font_file_list[] = { @fonts_list_str@ };
+const struct font_file **tfb_font_file_list = __font_file_list;

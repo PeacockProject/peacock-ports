@@ -1,0 +1,14 @@
+[package]
+name = "elogind-openrc"
+version = "20260215"
+description = "OpenRC elogind init script (Artix)"
+
+[build]
+source = ""
+checksum = ""
+script = """
+set -e
+
+install -Dm755 elogind.initd "$PWD/stage/etc/init.d/elogind"
+install -Dm644 elogind.confd "$PWD/stage/etc/conf.d/elogind"
+"""

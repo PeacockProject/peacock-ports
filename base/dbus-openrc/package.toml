@@ -1,0 +1,15 @@
+[package]
+name = "dbus-openrc"
+version = "20250202"
+description = "OpenRC dbus init scripts (Artix)"
+
+[build]
+source = ""
+checksum = ""
+script = """
+set -e
+
+install -Dm755 dbus.initd "$PWD/stage/etc/init.d/dbus"
+install -Dm755 dbus.user.initd "$PWD/stage/etc/user/init.d/dbus"
+install -Dm644 80-dbus "$PWD/stage/etc/X11/xinit/xinitrc.d/80-dbus.sh"
+"""

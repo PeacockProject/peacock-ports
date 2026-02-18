@@ -1,0 +1,32 @@
+[package]
+name = "pbsplash"
+version = "0.1.0"
+description = "Static pbsplash with tfblib for initramfs testing"
+
+[build]
+use_qemu = false
+cross_compile = "arm-linux-gnueabihf-"
+script = """
+mkdir -p stage/usr/bin stage/usr/share/pbsplash
+
+# Extract bundled sources and assets
+tar -xf pbsplash-src.tar.gz
+cp -a assets/* stage/usr/share/pbsplash/
+
+# Provide an empty font list to avoid cmake codegen
+cat > tfblib/src/fonts_decls.c <<'EOF'
+#include "font.h"
+static const struct font_file *__font_file_list[] = {0};
+const struct font_file **tfb_font_file_list = __font_file_list;
+EOF
+
+TFB_CFLAGS="-I tfblib/include -I tfblib/src"
+${CROSS_COMPILE:-}gcc -static -O2 -c tfblib/src/*.c tfblib/src/fonts_decls.c $TFB_CFLAGS
+${CROSS_COMPILE:-}ar rcs libtfb.a *.o
+rm -f *.o
+
+PBS_CFLAGS="-I pbsplash/include -I tfblib/include -I tfblib/src"
+${CROSS_COMPILE:-}gcc -static -O2 -o stage/usr/bin/pbsplash \
+  pbsplash/src/animate.c pbsplash/src/nanosvg.c pbsplash/src/timespec.c pbsplash/src/pbsplash.c \
+  libtfb.a -lm $PBS_CFLAGS
+"""
