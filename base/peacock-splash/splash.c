@@ -72,10 +72,12 @@ static int open_active_tty(void) {
 }
 
 static void splash_flush(void) {
-    vinfo.activate |= FB_ACTIVATE_NOW | FB_ACTIVATE_FORCE;
-    if (ioctl(fb_fd, FBIOPUT_VSCREENINFO, &vinfo) < 0) {
-        ioctl(fb_fd, FBIOPAN_DISPLAY, &vinfo);
+    if (fb_mem && screensize > 0) {
+        msync(fb_mem, (size_t)screensize, MS_SYNC);
     }
+    vinfo.activate |= FB_ACTIVATE_NOW | FB_ACTIVATE_FORCE;
+    ioctl(fb_fd, FBIOPUT_VSCREENINFO, &vinfo);
+    ioctl(fb_fd, FBIOPAN_DISPLAY, &vinfo);
 }
 
 static unsigned int pack_pixel(unsigned int rgb) {
@@ -97,26 +99,69 @@ static unsigned int pack_pixel(unsigned int rgb) {
         val |= bbits << vinfo.blue.offset;
     }
     if (vinfo.transp.length) {
-        unsigned int tbits = (1u << vinfo.transp.length) - 1u;
+        /*
+         * Treat fbdev alpha as unused unless a device profile proves otherwise.
+         * Several Android fbdev drivers expose a transp field that is ignored or
+         * produces artifacts when driven non-zero.
+         */
+        unsigned int tbits = 0u;
         val |= tbits << vinfo.transp.offset;
     }
     return val;
 }
 
-static inline void draw_pixel(int x, int y, unsigned int color) {
-    if (x < 0 || y < 0 || x >= (int)vinfo.xres || y >= (int)vinfo.yres) return;
+static inline unsigned int fb_page_count(void) {
+    if (vinfo.yres == 0) return 1U;
+    if (vinfo.yres_virtual < vinfo.yres) return 1U;
+    return vinfo.yres_virtual / vinfo.yres;
+}
+
+static inline char *fb_row_ptr_page(int y, unsigned int page_idx) {
+    unsigned int mem_y;
+
+    if (!fb_mem || y < 0 || y >= (int)vinfo.yres) return NULL;
+    mem_y = (unsigned int)y + page_idx * vinfo.yres;
+    if (mem_y >= vinfo.yres_virtual) return NULL;
+    return fb_mem + ((size_t)mem_y * finfo.line_length);
+}
+
+static inline char *fb_row_ptr_visible(int y) {
+    unsigned int active_page;
+
+    if (vinfo.yres == 0U) return NULL;
+    active_page = vinfo.yoffset / vinfo.yres;
+    return fb_row_ptr_page(y, active_page);
+}
+
+static inline void draw_pixel_row(char *row_base, unsigned int mem_x, unsigned int color) {
+    if (!row_base) return;
     if (bytes_per_pixel == 2) {
-        unsigned short *row = (unsigned short*)((char*)fb_mem + y * finfo.line_length);
-        row[x] = (unsigned short)color;
+        unsigned short *row = (unsigned short*)row_base;
+        row[mem_x] = (unsigned short)color;
     } else if (bytes_per_pixel == 3) {
-        unsigned char *row = (unsigned char*)fb_mem + y * finfo.line_length;
-        int pos = x * 3;
+        unsigned char *row = (unsigned char*)row_base;
+        int pos = (int)mem_x * 3;
         row[pos + 0] = (unsigned char)(color & 0xFF);
         row[pos + 1] = (unsigned char)((color >> 8) & 0xFF);
         row[pos + 2] = (unsigned char)((color >> 16) & 0xFF);
     } else {
-        unsigned int *row = (unsigned int*)((char*)fb_mem + y * finfo.line_length);
-        row[x] = color;
+        unsigned int *row = (unsigned int*)row_base;
+        row[mem_x] = color;
+    }
+}
+
+static inline void draw_pixel(int x, int y, unsigned int color) {
+    unsigned int mem_x;
+    unsigned int pages;
+    unsigned int page_idx;
+
+    if (x < 0 || y < 0 || x >= (int)vinfo.xres || y >= (int)vinfo.yres) return;
+    mem_x = (unsigned int)x + vinfo.xoffset;
+    if (mem_x >= vinfo.xres_virtual) return;
+
+    pages = fb_page_count();
+    for (page_idx = 0U; page_idx < pages; ++page_idx) {
+        draw_pixel_row(fb_row_ptr_page(y, page_idx), mem_x, color);
     }
 }
 
@@ -200,7 +245,9 @@ static void clear_lk2nd_footer_strip(void) {
      */
     for (unsigned int row = 0; row < clear_rows; ++row) {
         unsigned int yy = start_row + row;
-        memset(fb_mem + (yy * finfo.line_length), 0, finfo.line_length);
+        char *row_base = fb_row_ptr_visible((int)yy);
+        if (!row_base) break;
+        memset(row_base, 0, finfo.line_length);
     }
 }
 
@@ -271,8 +318,10 @@ static void splash_glitch_brief(void) {
             }
             int shift_bytes = shift_px * bytes_per_pixel;
             for (int by = 0; by < bh && y + by < (int)vinfo.yres; ++by) {
-                unsigned char *dst = (unsigned char*)fb_mem + ((y + by) * finfo.line_length);
-                const unsigned char *src = frame_tmp + ((y + by) * finfo.line_length);
+                unsigned int mem_y = (unsigned int)(y + by) + vinfo.yoffset;
+                if (mem_y >= vinfo.yres_virtual) continue;
+                unsigned char *dst = (unsigned char*)fb_mem + ((size_t)mem_y * finfo.line_length);
+                const unsigned char *src = frame_tmp + ((size_t)mem_y * finfo.line_length);
                 shift_row_wrap(line_tmp, src, (int)finfo.line_length, shift_bytes);
                 memcpy(dst, line_tmp, (size_t)finfo.line_length);
             }
@@ -471,7 +520,7 @@ int splash_init(const char *fbdev) {
         close(fb_fd);
         return -1;
     }
-    screensize = (long int)vinfo.yres * finfo.line_length;
+    screensize = (long int)vinfo.yres_virtual * finfo.line_length;
     bytes_per_pixel = vinfo.bits_per_pixel / 8;
     fprintf(stderr, "peacock-splash: fb %dx%d bpp=%u line_length=%u\n",
             vinfo.xres, vinfo.yres, vinfo.bits_per_pixel, finfo.line_length);
@@ -503,31 +552,41 @@ int splash_init(const char *fbdev) {
 void splash_clear(unsigned int color) {
     if (!fb_mem) return;
     unsigned int rows = vinfo.yres;
+    unsigned int pages = fb_page_count();
     if (bytes_per_pixel == 2) {
         unsigned short c16 = (unsigned short)pack_pixel(color);
-        for (int y = 0; y < (int)rows; y++) {
-            unsigned short *row = (unsigned short*)((char*)fb_mem + y * finfo.line_length);
-            for (int x = 0; x < (int)vinfo.xres; x++) {
-                row[x] = c16;
+        for (unsigned int page = 0; page < pages; ++page) {
+            for (int y = 0; y < (int)rows; y++) {
+                unsigned short *row = (unsigned short*)fb_row_ptr_page(y, page);
+                if (!row) continue;
+                for (unsigned int x = 0; x < vinfo.xres; x++) {
+                    row[x + vinfo.xoffset] = c16;
+                }
             }
         }
     } else if (bytes_per_pixel == 3) {
         unsigned int c = pack_pixel(color);
-        for (int y = 0; y < (int)rows; y++) {
-            unsigned char *row = (unsigned char*)fb_mem + y * finfo.line_length;
-            for (int x = 0; x < (int)vinfo.xres; x++) {
-                int pos = x * 3;
-                row[pos + 0] = (unsigned char)(c & 0xFF);
-                row[pos + 1] = (unsigned char)((c >> 8) & 0xFF);
-                row[pos + 2] = (unsigned char)((c >> 16) & 0xFF);
+        for (unsigned int page = 0; page < pages; ++page) {
+            for (int y = 0; y < (int)rows; y++) {
+                unsigned char *row = (unsigned char*)fb_row_ptr_page(y, page);
+                if (!row) continue;
+                for (unsigned int x = 0; x < vinfo.xres; x++) {
+                    int pos = (int)(x + vinfo.xoffset) * 3;
+                    row[pos + 0] = (unsigned char)(c & 0xFF);
+                    row[pos + 1] = (unsigned char)((c >> 8) & 0xFF);
+                    row[pos + 2] = (unsigned char)((c >> 16) & 0xFF);
+                }
             }
         }
     } else {
         unsigned int c32 = pack_pixel(color);
-        for (int y = 0; y < (int)rows; y++) {
-            unsigned int *row = (unsigned int*)((char*)fb_mem + y * finfo.line_length);
-            for (int x = 0; x < (int)vinfo.xres; x++) {
-                row[x] = c32;
+        for (unsigned int page = 0; page < pages; ++page) {
+            for (int y = 0; y < (int)rows; y++) {
+                unsigned int *row = (unsigned int*)fb_row_ptr_page(y, page);
+                if (!row) continue;
+                for (unsigned int x = 0; x < vinfo.xres; x++) {
+                    row[x + vinfo.xoffset] = c32;
+                }
             }
         }
     }

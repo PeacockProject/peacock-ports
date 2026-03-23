@@ -1,0 +1,13 @@
+[package]
+name = "linux-oppo-a16"
+version = "5.10.r0"
+description = "Prebuilt MT6765 kernel for OPPO A16"
+
+[build]
+source = "file:///home/tiel/Documents/bro/shen/out/linux-oppo-a16-local-kernel-ab.tar.gz"
+checksum = "f17ebe9f8be8902725515fa68a45719c52dba0c96aa1f0709355403ba0907b97"
+use_qemu = true
+script = """
+mkdir -p stage
+cp zImage stage/zImage
+"""

@@ -1,0 +1,22 @@
+[device]
+name = "OPPO A16"
+architecture = "aarch64"
+flash_method = "fastboot-bootimg"
+
+[boot]
+cmdline = ""
+generate_bootimg = true
+
+[boot.android]
+base = "0x40078000"
+page_size = 2048
+kernel_offset = "0x00008000"
+ramdisk_offset = "0x11a88000"
+second_offset = "0xbff88000"
+tags_offset = "0x07808000"
+
+[quirks]
+keep_fb_refresher_with_dm = false
+xorg_force_vt1 = false
+use_fb_refresher = false
+legacy_rootfs_ext4 = false

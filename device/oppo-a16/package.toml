@@ -1,0 +1,36 @@
+[package]
+name = "device-oppo-a16"
+version = "1.0.0"
+description = "OPPO A16 device package"
+
+[build]
+dependencies = ["linux-oppo-a16"]
+dependencies_openrc = [
+    "filesystem",
+    "glibc",
+    "bash",
+    "coreutils",
+    "util-linux",
+    "openrc",
+    "sysvinit-tools",
+    "procps-ng",
+    "grep",
+    "sed",
+    "gawk",
+    "tar",
+    "pacman",
+    "gcc-libs",
+    "shadow",
+    "psmisc",
+    "iproute2",
+    "iputils",
+    "inetutils",
+    "nano",
+    "dhcpcd",
+    "openssh",
+    "udev-openrc",
+    "xf86-video-fbdev",
+    "peacock-splash",
+    "oppo-a16-display-fix"
+]
+script = "echo 'device-oppo-a16 installed'"
