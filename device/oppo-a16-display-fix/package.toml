@@ -26,6 +26,37 @@ mkdir -p stage/usr/local/sbin stage/usr/local/bin stage/etc/conf.d
 mkdir -p stage/etc/udev/rules.d stage/etc/X11/xorg.conf.d stage/etc/sddm.conf.d
 mkdir -p stage/etc/xdg/xfce4/xfconf/xfce-perchannel-xml
 
+# ── fbpan: FBIOPAN_DISPLAY trigger ────────────────────────────────────
+# MTKFB in DECOUPLE mode stops reading the framebuffer.  FBIOPAN_DISPLAY
+# forces the OVL back to DIRECT_LINK so Xorg output is visible.
+cat > /tmp/fbpan.c <<'FBPAN'
+#include <stdio.h>
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include <linux/fb.h>
+#include <unistd.h>
+#include <string.h>
+int main() {
+    int fd = open("/dev/fb0", O_RDWR);
+    if (fd < 0) { perror("open"); return 1; }
+    struct fb_var_screeninfo v;
+    if (ioctl(fd, FBIOGET_VSCREENINFO, &v) < 0) {
+        memset(&v, 0, sizeof(v));
+        v.xres = 720; v.yres = 1600;
+        v.xres_virtual = 720; v.yres_virtual = 1600;
+        v.bits_per_pixel = 32;
+    }
+    v.xoffset = 0; v.yoffset = 0;
+    v.activate = 0x80 | 0x100; /* FB_ACTIVATE_NOW | FB_ACTIVATE_FORCE */
+    if (ioctl(fd, FBIOPAN_DISPLAY, &v) < 0) perror("FBIOPAN_DISPLAY");
+    else printf("fbpan ok\n");
+    close(fd);
+    return 0;
+}
+FBPAN
+${CROSS_COMPILE}gcc -static -o stage/usr/local/bin/fbpan /tmp/fbpan.c
+chmod 0755 stage/usr/local/bin/fbpan
+
 # ── cgroup v1 ──────────────────────────────────────────────────────────────
 # MT6765 kernel is cgroup-v1 only.  OpenRC defaults to unified (v2), which
 # leaves /sys/fs/cgroup unmounted and makes elogind crash.
@@ -103,9 +134,29 @@ Section "InputClass"
 EndSection
 EOF
 
+# ── Xorg VT1 wrapper ──────────────────────────────────────────────────────
+# MTKFB's fbcon binding doesn't implement VT switch callbacks, so
+# VT_WAITACTIVE hangs forever when Xorg tries to activate VT2.
+# This wrapper rewrites vtN → vt1 and adds -novtswitch so Xorg stays
+# on the already-active VT1 instead of blocking.
+cat > stage/usr/local/bin/Xorg-vt1 <<'EOF'
+#!/bin/sh
+# Force Xorg to use VT1 — VT switching is broken without working fbcon
+args=""
+for arg in "$@"; do
+    case "$arg" in
+        vt[0-9]*) args="$args vt1" ;;
+        *) args="$args $arg" ;;
+    esac
+done
+exec /usr/lib/Xorg -novtswitch $args
+EOF
+chmod 0755 stage/usr/local/bin/Xorg-vt1
+
 # ── SDDM config ────────────────────────────────────────────────────────────
 # MinimumVT=1 because tty2+ may not be accessible on this device.
 # Software rendering is required since mtkfb has no GPU/DRM acceleration.
+# ServerPath uses Xorg-vt1 wrapper to avoid VT switch hang.
 cat > stage/etc/sddm.conf.d/zzz-oppo-a16.conf <<'EOF'
 [General]
 MinimumVT=1
@@ -119,7 +170,8 @@ GreeterEnvironment=QT_QUICK_BACKEND=software,QSG_RHI_BACKEND=software,QT_XCB_NO_
 Current=peacock-phone
 
 [X11]
-ServerArguments=-nolisten tcp -noreset -keeptty -novtswitch -sharevts -verbose 4 -logfile /var/log/Xorg.0.log -extension GLX -extension COMPOSITE -extension DAMAGE -extension MIT-SHM
+ServerPath=/usr/local/bin/Xorg-vt1
+ServerArguments=-nolisten tcp -noreset -keeptty -verbose 4 -logfile /var/log/Xorg.0.log -extension GLX -extension COMPOSITE -extension DAMAGE -extension MIT-SHM
 EnableHiDPI=false
 EOF
 
@@ -284,14 +336,29 @@ start() {
         fi
     done
 
-    # ── Backlight restore ─────────────────────────────────────────────────
-    # MTKFB blank/unblank can leave backlight at 0.  Force it to max so the
-    # display is visible when sddm starts.
-    bl="/sys/class/leds/lcd-backlight/brightness"
-    if [ -w "$bl" ]; then
-        echo 4095 > "$bl"
-        echo "backlight set to 4095" >> "$LOG_FILE" 2>&1
+    # ── Remove Mali DRM device ────────────────────────────────────────────
+    # The Mali GPU (13000000.mfg_doma) exposes /dev/dri/card0 but has no
+    # CRTCs or connectors (render-only).  Xorg's platform bus probes it
+    # anyway and hangs for ~3 minutes in firmware_fallback_sysfs.
+    # Removing the device node before Xorg starts avoids the hang.
+    rm -f /dev/dri/card0 2>/dev/null
+    echo "removed /dev/dri/card0 (Mali render-only)" >> "$LOG_FILE" 2>&1
+
+    # ── Wake display pipeline ─────────────────────────────────────────────
+    # MTKFB idle manager switches to DECOUPLE mode after ~50ms of no FB
+    # activity.  In DECOUPLE the OVL stops reading the framebuffer so
+    # nothing rendered by Xorg is visible.  Set idle timeout very high,
+    # blank/unblank to reset the DSI pipeline, then FBIOPAN_DISPLAY to
+    # force DIRECT_LINK mode so the OVL continuously reads from the FB.
+    echo 999999 > /proc/displowpower/idletime 2>/dev/null
+    echo 1 > /sys/class/graphics/fb0/blank 2>/dev/null
+    sleep 1
+    echo 0 > /sys/class/graphics/fb0/blank 2>/dev/null
+    echo 4095 > /sys/class/leds/lcd-backlight/brightness 2>/dev/null
+    if [ -x /usr/local/bin/fbpan ]; then
+        /usr/local/bin/fbpan >> "$LOG_FILE" 2>&1
     fi
+    echo "display wake done" >> "$LOG_FILE" 2>&1
 
     # Ensure udev is alive so fb0 gets tagged as seat master before elogind.
     if ! pidof udevd >/dev/null 2>&1; then
@@ -320,7 +387,7 @@ start() {
         fi
         lname=$(echo "$name" | tr '[:upper:]' '[:lower:]')
         case "$lname" in
-            *goodix*|*touchscreen*)
+            *goodix*|*touchscreen*|*touchpanel*)
                 touch_event="$ev"
                 break
                 ;;
