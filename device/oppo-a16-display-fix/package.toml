@@ -1,6 +1,6 @@
 [package]
 name = "oppo-a16-display-fix"
-version = "1.0.0"
+version = "1.1.0"
 description = "OPPO A16 OpenRC display preflight and Xorg/SDDM quirks"
 depends = ["peacock-sddm-theme-peacock-phone"]
 
@@ -36,8 +36,12 @@ EOF
 # ── fb0 seat master ────────────────────────────────────────────────────────
 # elogind reports CanGraphical=false on fbdev-only devices unless fb0 is
 # tagged as the seat master.  Without this sddm never launches Xorg.
-cat > stage/etc/udev/rules.d/71-oppo-a16-seat-master.rules <<'EOF'
-SUBSYSTEM=="graphics", KERNEL=="fb0", TAG+="master-of-seat"
+# Also tag DRM (PowerVR GPU) and input devices so elogind sees a full seat.
+cat > stage/etc/udev/rules.d/71-oppo-a16-seat.rules <<'EOF'
+SUBSYSTEM=="graphics", KERNEL=="fb0", TAG+="seat", ENV{ID_SEAT}="seat0", TAG+="master-of-seat"
+SUBSYSTEM=="drm", KERNEL=="card0", TAG+="seat", ENV{ID_SEAT}="seat0"
+SUBSYSTEM=="drm", KERNEL=="renderD128", TAG+="seat", ENV{ID_SEAT}="seat0"
+SUBSYSTEM=="input", KERNEL=="event*", TAG+="seat", ENV{ID_SEAT}="seat0"
 EOF
 
 # ── Xorg fbdev config ──────────────────────────────────────────────────────
@@ -45,8 +49,18 @@ cat > stage/etc/X11/xorg.conf.d/10-peacock-fbdev.conf <<'EOF'
 # Prevent Xorg from auto-probing the Mali GPU DRM device (13000000.mfg_doma).
 # That device is render-only (no CRTCs/connectors) and its platform probe
 # hangs indefinitely, blocking all of Xorg startup.
+#
+# DPMS must be fully disabled: MTKFB's blank/unblank kills the display
+# pipeline (DSI/DDP/OVL) and the unblank path doesn't restore it.  With
+# DPMS active, Xorg sends FB_BLANK on init which leaves the screen dead.
 Section "ServerFlags"
+    Option "AutoAddDevices" "false"
     Option "AutoAddGPU" "false"
+    Option "BlankTime" "0"
+    Option "StandbyTime" "0"
+    Option "SuspendTime" "0"
+    Option "OffTime" "0"
+    Option "DPMS" "false"
 EndSection
 
 Section "Device"
@@ -105,7 +119,7 @@ GreeterEnvironment=QT_QUICK_BACKEND=software,QSG_RHI_BACKEND=software,QT_XCB_NO_
 Current=peacock-phone
 
 [X11]
-ServerArguments=-nolisten tcp -noreset -keeptty -verbose 4 -logfile /var/log/Xorg.0.log -extension GLX -extension COMPOSITE -extension DAMAGE -extension MIT-SHM
+ServerArguments=-nolisten tcp -noreset -keeptty -novtswitch -sharevts -verbose 4 -logfile /var/log/Xorg.0.log -extension GLX -extension COMPOSITE -extension DAMAGE -extension MIT-SHM
 EnableHiDPI=false
 EOF
 
@@ -251,6 +265,33 @@ start() {
         echo "=== oppo-a16-display-fix start ==="
         date -u '+utc=%Y-%m-%dT%H:%M:%SZ'
     } >> "$LOG_FILE" 2>&1
+
+    # ── Fix broken tty device nodes ───────────────────────────────────────
+    # Some initramfs/devfs implementations create tty2-12 as regular text
+    # files instead of proper character devices.  VT switching, Xorg, and
+    # elogind all break without real ttys.
+    for n in 0 1 2 3 4 5 6 7 8 9 10 11 12; do
+        dev="/dev/tty${n}"
+        if [ -e "$dev" ] && ! [ -c "$dev" ]; then
+            rm -f "$dev"
+            mknod "$dev" c 4 "$n"
+            chmod 0620 "$dev"
+            echo "fixed tty${n}: was not a char device" >> "$LOG_FILE" 2>&1
+        elif ! [ -e "$dev" ]; then
+            mknod "$dev" c 4 "$n"
+            chmod 0620 "$dev"
+            echo "created tty${n}" >> "$LOG_FILE" 2>&1
+        fi
+    done
+
+    # ── Backlight restore ─────────────────────────────────────────────────
+    # MTKFB blank/unblank can leave backlight at 0.  Force it to max so the
+    # display is visible when sddm starts.
+    bl="/sys/class/leds/lcd-backlight/brightness"
+    if [ -w "$bl" ]; then
+        echo 4095 > "$bl"
+        echo "backlight set to 4095" >> "$LOG_FILE" 2>&1
+    fi
 
     # Ensure udev is alive so fb0 gets tagged as seat master before elogind.
     if ! pidof udevd >/dev/null 2>&1; then
