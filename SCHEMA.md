@@ -210,3 +210,41 @@ sddm-theme-other = ">=2.0"
 - Order of tables in the file is not significant. The Phase 1 migration
   inserts `[install]` immediately after `[package]` as a convention, but
   parsers must not rely on it.
+
+---
+
+## Repository tree conventions
+
+The `peacock-ports/` tree is organised by where a port lives at install time,
+not by language or upstream provenance:
+
+| Top-level dir | Purpose | Typical `[install].layout` |
+|---|---|---|
+| `base/` | Base-distro packages that land at `/usr` via the legacy installer path. | `system` |
+| `device/` | Device-specific ports (bootloaders, vendor fixups, kernel forks). | `system` (mostly) |
+| `compat/` | **New.** Per-runtime compat shim trees that land under `/compat/<runtime>/`. Sibling of `base/` and `device/`. | `compat` |
+
+### `compat/<runtime>/` convention
+
+- Each immediate subdirectory of `compat/` is named after the runtime it
+  vendors — for example `compat/glibc/`, and (planned) `compat/debian/`,
+  `compat/atl/`, `compat/peacock-v1/`.
+- Ports under `compat/` **must** set both:
+  - `[install].layout = "compat"`
+  - `[package].runtime = "<name>"` matching the directory name.
+- `[install].prefix` defaults to `/compat/<runtime>` and should be set
+  explicitly for clarity (see the first example below).
+- `[package].flavor` lists the base flavors this shim is needed on. A glibc
+  shim, for instance, only makes sense for musl-base flavors (`alpine`); on
+  glibc-native flavors (`arch`, `debian`) the shim is a redundant no-op.
+
+### First example
+
+`compat/glibc/package.toml` is the canonical reference for compat-layout
+ports. It ships the glibc 2.40 runtime tree so that musl-base flavors
+(Alpine, postmarketOS-musl-Arch) can run glibc-only binaries (Steam, Discord,
+proprietary IDEs) via `/compat/glibc/`.
+
+See also the `[notes]` table in that manifest for the cross-compile caveats —
+this is a build skeleton; Phase 8+ will add a binary-cache prebuilt path so
+on-device musl hosts do not have to cross-compile glibc.
