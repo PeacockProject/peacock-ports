@@ -1,0 +1,20 @@
+[package]
+name = "peacock-mkinitfs"
+version = "0.1.0"
+description = "Standalone CLI that builds the Peacock initramfs cpio.gz. Replaces the in-tree peacock-initramfs-tools port plus the internal/mkinitfs package that previously lived inside the Peacock CLI."
+
+[build]
+source = "https://github.com/PeacockProject/peacock-mkinitfs/archive/refs/heads/main.tar.gz"
+checksum = ""
+build_deps = ["base-devel", "go", "coreutils"]
+use_qemu = false
+cross_compile = ""
+script = """
+tarball="$(ls -1 peacock-mkinitfs-*.tar.gz main.tar.gz 2>/dev/null | head -n1)"
+if [ -n "$tarball" ]; then
+  tar -xzf "$tarball" --strip-components=1
+fi
+
+mkdir -p stage/usr/bin
+go build -trimpath -ldflags "-s -w" -o stage/usr/bin/peacock-mkinitfs ./cmd/peacock-mkinitfs
+"""
