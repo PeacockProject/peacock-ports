@@ -1,0 +1,29 @@
+[package]
+name = "lvm2"
+version = "2.03.40"
+description = "Logical Volume Manager 2 (Arch version) — provides dmsetup + libdevmapper used by Peacock initramfs for nested-root dm-linear mapping"
+
+[build]
+source = "https://mirrors.kernel.org/sourceware/lvm2/LVM2.2.03.40.tgz"
+checksum = ""
+build_deps = ["base-devel", "bash", "util-linux"]
+script = """
+tarball="$(ls -1 LVM2.*.tgz 2>/dev/null | head -n1)"
+if [ -n "$tarball" ]; then
+  tar -xzf "$tarball" --strip-components=1
+fi
+./configure \
+  --prefix="$(pwd)/stage" \
+  --sbindir="$(pwd)/stage/sbin" \
+  --enable-static_link \
+  --disable-selinux \
+  --disable-udev_sync \
+  --disable-systemd-journal \
+  --without-systemd \
+  --without-systemdsystemunitdir \
+  --enable-applib \
+  --enable-cmdlib
+make -j"$(nproc)" device-mapper
+make -j"$(nproc)" install_device-mapper
+cp -a stage/sbin stage/lib stage/include ./ 2>/dev/null || true
+"""

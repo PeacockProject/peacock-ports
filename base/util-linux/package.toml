@@ -1,0 +1,28 @@
+[package]
+name = "util-linux"
+version = "2.41"
+description = "Miscellaneous system utilities (Arch version) — provides losetup, partx, blkid, lsblk, mount, mountpoint, etc. used by Peacock initramfs for partition probing"
+
+[build]
+source = "https://www.kernel.org/pub/linux/utils/util-linux/v2.41/util-linux-2.41.tar.gz"
+checksum = ""
+build_deps = ["base-devel", "bash", "ncurses"]
+script = """
+tarball="$(ls -1 util-linux-*.tar.gz 2>/dev/null | head -n1)"
+if [ -n "$tarball" ]; then
+  tar -xzf "$tarball" --strip-components=1
+fi
+./configure \
+  --prefix="$(pwd)/stage" \
+  --disable-makeinstall-chown \
+  --disable-makeinstall-setuid \
+  --without-systemd \
+  --without-systemdsystemunitdir \
+  --without-python \
+  --disable-bash-completion \
+  --disable-rpath \
+  --enable-static-programs=losetup,blkid,partx,lsblk
+make -j"$(nproc)"
+make install
+cp -a stage/bin stage/sbin stage/lib stage/include ./ 2>/dev/null || true
+"""
