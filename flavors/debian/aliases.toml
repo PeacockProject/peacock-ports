@@ -1,6 +1,96 @@
 # Debian flavor build-deps alias table.
 #
-# Populate as Debian-flavor ports land. Each key maps an Arch build_deps name
-# to its Debian equivalent.
+# Each key maps the canonical Arch build_deps name (as it appears in
+# peacock-ports/*/*/package.toml) to its Debian equivalent. Consumed by the
+# Peacock CLI's internal/builder.ResolveBuildDeps when materialising a Debian
+# build chroot for flavor = "debian".
+#
+# This file mirrors flavors/arch/aliases.toml (identity baseline) and
+# flavors/alpine/aliases.toml (musl + -dev split). Debian's idiosyncrasies vs
+# Arch are mainly:
+#   - library headers live in `<pkg>-dev` packages;
+#   - cross-toolchains use the `gcc-<triple>` / `binutils-<triple>` naming;
+#   - several Qt5 components have non-obvious package names;
+#   - util-linux's headers are split across multiple Debian packages.
+#
+# Identity entries are kept explicit so it's obvious at a glance which names
+# round-trip and which got rewritten.
 
 [aliases]
+"base-devel" = "build-essential"
+"bash" = "bash"
+"make" = "make"
+"gcc" = "gcc"
+"clang" = "clang"
+"lld" = "lld"
+"dtc" = "dtc"
+"gzip" = "gzip"
+"coreutils" = "coreutils"
+"go" = "go"
+"perl" = "perl"
+"bc" = "bc"
+"bison" = "bison"
+"flex" = "flex"
+"cpio" = "cpio"
+"kmod" = "kmod"
+"grep" = "grep"
+"sed" = "sed"
+"tar" = "tar"
+"patch" = "patch"
+"diffutils" = "diffutils"
+"gettext" = "gettext"
+"meson" = "meson"
+"gperf" = "gperf"
+"python" = "python3"
+"python-docutils" = "python3-docutils"
+"python-jinja" = "python3-jinja2"
+"ncurses" = "libncurses-dev"
+"openssl" = "libssl-dev"
+
+# Note: util-linux is multi-target on Debian. The Arch `util-linux` package
+# bundles libblkid / libmount / libuuid headers; Debian splits them into
+# separate -dev packages. The resolver MUST treat this value as a space-
+# separated list and expand all four packages into the build chroot.
+"util-linux" = "util-linux libblkid-dev libmount-dev libuuid1-dev"
+
+# X11 ecosystem — Debian splits headers into -dev packages and uses the
+# `xutils-dev` name for the autoconf macro collection.
+"libx11" = "libx11-dev"
+"xorgproto" = "xorg-dev"
+# Note: xorg-util-macros becomes `xutils-dev` on Debian (historical name).
+"xorg-util-macros" = "xutils-dev"
+"xorg-server-devel" = "xserver-xorg-dev"
+"pixman" = "libpixman-1-dev"
+
+# Build systems with renamed binaries.
+"ninja" = "ninja-build"
+"awk" = "gawk"
+"pkgconf" = "pkg-config"
+
+# CMake ecosystem — identity on Debian.
+"cmake" = "cmake"
+"extra-cmake-modules" = "extra-cmake-modules"
+
+# Cross toolchains. Debian's cross-toolchain packages follow the
+# `gcc-<triple>` / `binutils-<triple>` naming. aarch64 binutils happens to
+# share the Arch package name verbatim.
+"aarch64-linux-gnu-binutils" = "aarch64-linux-gnu-binutils"
+"aarch64-linux-gnu-gcc" = "gcc-aarch64-linux-gnu"
+"arm-none-eabi-binutils" = "binutils-arm-none-eabi"
+"arm-none-eabi-gcc" = "gcc-arm-none-eabi"
+# Note: Arch's `toolchain-arm-eabi` meta-port pulls binutils + gcc together;
+# Debian has no equivalent meta, so expand to both packages (multi-target).
+"toolchain-arm-eabi" = "binutils-arm-none-eabi gcc-arm-none-eabi"
+# Note: same multi-target expansion for the arm-linux-gnueabihf toolchain.
+"toolchain-arm-linux-gnueabihf" = "binutils-arm-linux-gnueabihf gcc-arm-linux-gnueabihf"
+
+# Qt5 / Qt6 — Debian's package names for the Qt modules differ from Arch's.
+"qt5-base" = "qtbase5-dev"
+"qt5-declarative" = "qtdeclarative5-dev"
+"qt5-tools" = "qttools5-dev"
+"qt6-declarative" = "qt6-declarative-dev"
+"qt6-tools" = "qt6-tools-dev"
+
+# Unmapped:
+#   (none at this time — every build_deps token used by ports under base/ and
+#   device/ as of this commit has a Debian equivalent above.)
