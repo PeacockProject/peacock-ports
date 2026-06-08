@@ -3,6 +3,10 @@ name = "pbsplash"
 version = "0.1.0"
 description = "Static pbsplash with tfblib for initramfs testing"
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 use_qemu = false
 cross_compile = "arm-linux-gnueabihf-"

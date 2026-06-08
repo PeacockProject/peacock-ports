@@ -3,6 +3,10 @@ name = "linux-samsung-jflte"
 version = "3.4.113.8"
 description = "Samsung Galaxy S4 kernel fork (LineageOS)"
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 # Source from LineageOS as used by pmbootstrap
 source = "https://github.com/LineageOS/android_kernel_samsung_jf/archive/0b7873d52c2331383f37eb908e54940eeac07345.tar.gz"

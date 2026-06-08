@@ -4,6 +4,10 @@ version = "0.9.12.2"
 description = "jflte-patched libXrender with crash guards for fbdev userspace"
 provides = ["libxrender"]
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 source = "https://www.x.org/releases/individual/lib/libXrender-0.9.12.tar.xz"
 checksum = ""

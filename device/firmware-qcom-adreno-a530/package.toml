@@ -3,6 +3,10 @@ name = "firmware-qcom-adreno-a530"
 version = "20241110"
 description = "Qualcomm Adreno A530 GPU firmware (from postmarketOS source)"
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 source = "https://gitlab.com/kernel-firmware/linux-firmware/-/archive/20241110/linux-firmware-20241110.tar.gz"
 checksum = ""

@@ -3,6 +3,10 @@ name = "gettext"
 version = "0.22.5"
 description = "GNU gettext runtime and tools (Arch version)"
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 source = "https://ftp.gnu.org/gnu/gettext/gettext-0.22.5.tar.gz"
 checksum = ""

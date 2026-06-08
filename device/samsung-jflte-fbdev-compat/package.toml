@@ -3,6 +3,10 @@ name = "samsung-jflte-fbdev-compat"
 version = "0.5.1.1"
 description = "Samsung jflte fbdev compatibility module for Xorg"
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 dependencies = ["xf86-video-fbdev"]
 build_deps = [

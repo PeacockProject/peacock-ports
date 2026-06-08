@@ -3,6 +3,10 @@ name = "bc"
 version = "1.08.2"
 description = "Arbitrary precision calculator language (Arch version)"
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 source = "https://ftp.gnu.org/gnu/bc/bc-1.08.2.tar.gz"
 checksum = ""

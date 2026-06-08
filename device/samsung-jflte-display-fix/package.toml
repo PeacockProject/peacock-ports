@@ -4,6 +4,10 @@ version = "1.0.41"
 description = "Samsung jflte OpenRC display preflight fix"
 depends = ["peacock-sddm-theme-peacock-phone"]
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 dependencies_openrc = ["openrc", "coreutils", "psmisc", "libinput", "xf86-input-libinput", "xf86-input-evdev", "xorg-xinput", "openbox", "xterm", "fastfetch", "peacock-sddm-theme-peacock-phone"]
 script = """

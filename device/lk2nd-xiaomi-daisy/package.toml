@@ -13,6 +13,10 @@ name = "lk2nd-xiaomi-daisy"
 version = "0.0.9075"
 description = "lk2nd secondary bootloader image for Xiaomi Mi A2 Lite (daisy / msm8953)"
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 source = "https://github.com/PeacockProject/lk2nd_peacock/archive/refs/heads/master.tar.gz"
 checksum = ""

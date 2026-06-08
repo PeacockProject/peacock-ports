@@ -4,6 +4,10 @@ version = "5.3.9.1"
 description = "The GNU Bourne Again shell (Arch version)"
 provides = ["sh"]
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 source = "https://ftp.gnu.org/gnu/bash/bash-5.3.tar.gz"
 checksum = ""

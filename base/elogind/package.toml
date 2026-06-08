@@ -3,6 +3,10 @@ name = "elogind"
 version = "255.17"
 description = "logind extracted from systemd (OpenRC-friendly)"
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 source = "https://github.com/elogind/elogind/archive/refs/tags/v255.17.tar.gz"
 checksum = "a9725ae3f73f8d910de84c108bc11bfd4c782bef6a4190b2ec70c5d2f22344db"

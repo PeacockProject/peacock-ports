@@ -3,6 +3,10 @@ name = "make"
 version = "4.4.1"
 description = "GNU make utility (Arch version)"
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 source = "https://ftp.gnu.org/gnu/make/make-4.4.1.tar.gz"
 checksum = ""

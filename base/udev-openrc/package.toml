@@ -3,6 +3,10 @@ name = "udev-openrc"
 version = "3.2.14"
 description = "Eudev - Device manager for the Linux kernel (OpenRC variant)"
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 source = "https://github.com/eudev-project/eudev/releases/download/v3.2.14/eudev-3.2.14.tar.gz"
 checksum = ""

@@ -3,6 +3,10 @@ name = "device-samsung-jflte"
 version = "1.0.0"
 description = "Samsung Galaxy S4 (Qualcomm) Device Package"
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 dependencies = ["linux-firmware", "linux-samsung-jflte", "firmware-samsung-jflte", "msm-fb-refresher", "samsung-jflte-fbdev-compat", "samsung-jflte-fbdevhw-compat"]
 dependencies_systemd = ["base"]

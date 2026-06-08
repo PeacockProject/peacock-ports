@@ -3,6 +3,10 @@ name = "peacock-mkinitfs"
 version = "0.1.0"
 description = "Standalone CLI that builds the Peacock initramfs cpio.gz. Replaces the in-tree peacock-initramfs-tools port plus the internal/mkinitfs package that previously lived inside the Peacock CLI."
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 source = "https://github.com/PeacockProject/peacock-mkinitfs/archive/refs/heads/main.tar.gz"
 checksum = ""

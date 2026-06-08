@@ -3,6 +3,10 @@ name = "linux-oppo-a16"
 version = "5.10.r0"
 description = "Prebuilt MT6765 kernel for OPPO A16"
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 source = "file:///home/tiel/Documents/bro/shen/out/linux-oppo-a16-local-kernel-ab.tar.gz"
 checksum = "f17ebe9f8be8902725515fa68a45719c52dba0c96aa1f0709355403ba0907b97"

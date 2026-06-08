@@ -3,6 +3,10 @@ name = "openssl"
 version = "3.6.1"
 description = "OpenSSL toolkit and headers (Arch version)"
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 source = "https://github.com/openssl/openssl/releases/download/openssl-3.6.1/openssl-3.6.1.tar.gz"
 checksum = ""

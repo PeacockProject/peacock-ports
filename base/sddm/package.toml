@@ -9,6 +9,10 @@ depends = [
     "qt6-declarative"
 ]
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 source = "https://github.com/sddm/sddm/archive/v0.21.0/sddm-0.21.0.tar.gz"
 checksum = "f895de2683627e969e4849dbfbbb2b500787481ca5ba0de6d6dfdae5f1549abf"

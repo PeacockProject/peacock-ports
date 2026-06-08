@@ -3,6 +3,10 @@ name = "linux-xiaomi-daisy"
 version = "6.16.3.r0"
 description = "Mainline kernel for Xiaomi Mi A2 Lite (daisy / msm8953)"
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 source = "https://github.com/msm8953-mainline/linux/archive/v6.16.3-r0.tar.gz"
 checksum = "f84c20e6dd6acf205fe1b64632a00d66307cc4676f5dc9b1d5ff7fe7867e2b1e"

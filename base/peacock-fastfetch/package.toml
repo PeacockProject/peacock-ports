@@ -3,6 +3,10 @@ name = "peacock-fastfetch"
 version = "1.0.1"
 description = "Display fastfetch at the end of OpenRC boot"
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 script = """
 mkdir -p stage/usr/bin stage/etc/init.d stage/etc/runlevels/default

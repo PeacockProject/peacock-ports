@@ -3,6 +3,10 @@ name = "device-qemu-x86_64"
 version = "1.0.0"
 description = "QEMU x86_64 virtual device package"
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 dependencies = ["linux", "linux-firmware", "mkinitcpio", "iptables-nft"]
 dependencies_systemd = ["base"]

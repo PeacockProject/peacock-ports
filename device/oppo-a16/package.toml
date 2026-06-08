@@ -3,6 +3,10 @@ name = "device-oppo-a16"
 version = "1.0.0"
 description = "OPPO A16 device package"
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 dependencies = ["linux-oppo-a16"]
 dependencies_openrc = [

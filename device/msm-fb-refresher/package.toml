@@ -3,6 +3,10 @@ name = "msm-fb-refresher"
 version = "1.0.0"
 description = "Placeholder msm-fb-refresher package for Samsung Galaxy S4 (jflte)"
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 build_dep_packages = ["toolchain-arm-linux-gnueabihf"]
 use_qemu = false

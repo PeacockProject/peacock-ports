@@ -12,6 +12,10 @@ depends = [
     "shadow",
 ]
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 dependencies_openrc = [
     "openrc",

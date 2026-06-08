@@ -3,6 +3,10 @@ name = "device-xiaomi-daisy"
 version = "1.0.0"
 description = "Xiaomi Mi A2 Lite device package"
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 dependencies = ["linux-firmware", "linux-xiaomi-daisy", "firmware-xiaomi-daisy", "firmware-qcom-adreno-a530", "peacock-sddm-theme-peacock-phone"]
 dependencies_systemd = ["base"]

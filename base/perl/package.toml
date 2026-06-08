@@ -3,6 +3,10 @@ name = "perl"
 version = "5.42.0"
 description = "Highly capable, feature-rich programming language (Arch version)"
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 source = "https://www.cpan.org/src/5.0/perl-5.42.0.tar.xz"
 checksum = ""

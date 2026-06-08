@@ -3,6 +3,10 @@ name = "openrc"
 version = "0.63.2"
 description = "OpenRC init system"
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 source = "https://github.com/OpenRC/openrc/archive/refs/tags/0.63.tar.gz"
 checksum = "" # skipping checksum for now as allowed

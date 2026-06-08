@@ -3,6 +3,10 @@ name = "util-linux"
 version = "2.41"
 description = "Miscellaneous system utilities (Arch version) — provides losetup, partx, blkid, lsblk, mount, mountpoint, etc. used by Peacock initramfs for partition probing"
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 source = "https://www.kernel.org/pub/linux/utils/util-linux/v2.41/util-linux-2.41.tar.gz"
 checksum = ""

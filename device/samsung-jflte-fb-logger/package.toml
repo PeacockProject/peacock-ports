@@ -3,6 +3,10 @@ name = "samsung-jflte-fb-logger"
 version = "1.0.0"
 description = "Samsung jflte framebuffer refresher service for OpenRC"
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 use_qemu = true
 cross_compile = ""

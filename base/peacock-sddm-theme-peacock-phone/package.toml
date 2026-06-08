@@ -4,6 +4,10 @@ version = "1.0.6"
 description = "PeacockOS phone-first SDDM theme (touch friendly, dark)"
 depends = ["sddm"]
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 script = """
 set -e

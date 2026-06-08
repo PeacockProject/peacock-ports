@@ -3,6 +3,10 @@ name = "dbus-openrc"
 version = "20250202"
 description = "OpenRC dbus init scripts (Artix)"
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 source = ""
 checksum = ""

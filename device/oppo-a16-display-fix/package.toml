@@ -4,6 +4,10 @@ version = "1.1.0"
 description = "OPPO A16 OpenRC display preflight and Xorg/SDDM quirks"
 depends = ["peacock-sddm-theme-peacock-phone"]
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 dependencies_openrc = [
     "openrc",

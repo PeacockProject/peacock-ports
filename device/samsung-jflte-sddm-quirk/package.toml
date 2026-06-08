@@ -4,6 +4,10 @@ version = "1.0.0"
 description = "jflte-specific SDDM/logind startup quirk handling"
 depends = ["sddm-openrc", "elogind", "dbus", "udev-openrc", "openrc"]
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 dependencies_openrc = ["sddm-openrc", "elogind", "dbus", "udev-openrc", "openrc", "coreutils"]
 script = """

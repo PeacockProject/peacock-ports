@@ -3,6 +3,10 @@ name = "sddm-openrc"
 version = "20260215"
 description = "OpenRC sddm init script (Artix)"
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 source = ""
 checksum = ""

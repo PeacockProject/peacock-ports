@@ -12,6 +12,10 @@ name = "minkernel-oppo-a16"
 version = "0.0.16"
 description = "MinKernel (mk) stage0 chainloader boot.img for OPPO A16 (MT6765)"
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 source = "https://github.com/PeacockProject/MinKernel/archive/refs/heads/master.tar.gz"
 checksum = ""

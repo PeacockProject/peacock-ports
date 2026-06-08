@@ -3,6 +3,10 @@ name = "ncurses"
 version = "6.5"
 description = "System V Release 4.0 curses emulation library (Arch version)"
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 source = "https://ftp.gnu.org/gnu/ncurses/ncurses-6.5.tar.gz"
 checksum = ""

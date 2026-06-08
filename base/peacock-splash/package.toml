@@ -3,6 +3,10 @@ name = "peacock-splash"
 version = "1.1.1"
 description = "Simple framebuffer splash screen utility for initramfs"
 
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
 [build]
 source = ""
 checksum = ""
