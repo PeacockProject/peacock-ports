@@ -1,0 +1,46 @@
+[package]
+name = "compat-glibc"
+version = "2.40"
+description = "glibc 2.40 runtime tree for /compat/glibc/, used by musl-base flavors (Alpine, postmarketOS-musl-Arch) to run glibc-only binaries such as Steam, Discord, and proprietary IDEs. First concrete port to use [install].layout = \"compat\"; see [notes] for cross-compile caveats."
+flavor = ["alpine"]
+runtime = "glibc"
+
+# Phase 7 schema migration — first compat-layout port.
+[install]
+layout = "compat"
+prefix = "/compat/glibc"
+
+[build]
+source = "https://ftp.gnu.org/gnu/glibc/glibc-2.40.tar.gz"
+checksum = ""
+build_deps = ["base-devel", "bison", "gawk", "python"]
+script = """
+tarball="$(ls -1 glibc-*.tar.gz 2>/dev/null | head -n1)"
+if [ -n "$tarball" ]; then
+  tar -xzf "$tarball" --strip-components=1
+fi
+mkdir -p build && cd build
+case "${ARCH:-aarch64}" in
+  aarch64)  TRIPLE=aarch64-linux-gnu ;;
+  armv7h)   TRIPLE=arm-linux-gnueabihf ;;
+  x86_64)   TRIPLE=x86_64-linux-gnu ;;
+  *) echo "compat-glibc: unsupported ARCH=${ARCH}" >&2 ; exit 1 ;;
+esac
+../configure --prefix=/compat/glibc --host="$TRIPLE" --enable-shared --disable-werror
+make -j"$(nproc)"
+make install DESTDIR="$(pwd)/../stage"
+"""
+
+[provides]
+glibc = "2.40"
+
+# Caveats / follow-ups for this skeleton port. The Peacock TOML parser
+# preserves unknown top-level tables verbatim, so this metadata round-trips
+# even though no consumer reads it yet.
+[notes]
+status = "skeleton"
+caveats = [
+  "This is a build skeleton. Actual cross-compile of glibc for Alpine musl-host targets requires a non-trivial toolchain dance (the musl host has to build glibc target binaries against a non-musl sysroot). A follow-up will land a per-arch prebuilt artifact path so the port can short-circuit when running on Alpine.",
+  "For now, building this port on Arch (already glibc) will succeed but produce a redundant glibc tree at /compat/glibc/. Arch's /usr is already glibc, so the duplicate is harmless under the compat-layout install rules.",
+  "Phase 8+ will add a per-flavor [build].script override plus a binary-cache prebuilt path so musl-base flavors do not have to cross-compile glibc on-device.",
+]

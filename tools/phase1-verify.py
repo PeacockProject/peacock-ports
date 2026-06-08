@@ -2,7 +2,7 @@
 """
 Phase 1 schema migration verification.
 
-For every package.toml under base/ and device/:
+For every package.toml under base/, device/, and compat/:
   1. Parses it with Python's stdlib tomllib (3.11+).
   2. Confirms presence of [install].layout.
 
@@ -28,6 +28,7 @@ def find_manifests() -> list[Path]:
     return sorted(
         list((REPO_ROOT / "base").glob("*/package.toml"))
         + list((REPO_ROOT / "device").glob("*/package.toml"))
+        + list((REPO_ROOT / "compat").glob("*/package.toml"))
     )
 
 
