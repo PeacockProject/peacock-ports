@@ -1,6 +1,50 @@
 # Alpine flavor build-deps alias table.
 #
-# Populate as Alpine-flavor ports land. Each key maps an Arch build_deps name
-# to its Alpine equivalent.
+# Each key maps the canonical Arch build_deps name (as it appears in
+# peacock-ports/*/*/package.toml) to its Alpine equivalent. Alpine's
+# main difference from Arch is the strict split of headers into
+# `<pkg>-dev` packages; most library names get an `-dev` suffix.
+#
+# Identity entries are kept explicit so it's obvious at a glance which
+# names round-trip and which got rewritten.
 
 [aliases]
+"base-devel" = "build-base"
+"python" = "python3"
+"perl" = "perl"
+"ncurses" = "ncurses-dev"
+"openssl" = "openssl-dev"
+"bash" = "bash"
+"make" = "make"
+"gcc" = "gcc"
+"clang" = "clang"
+"lld" = "lld"
+"dtc" = "dtc"
+"gzip" = "gzip"
+"coreutils" = "coreutils"
+"go" = "go"
+"bc" = "bc"
+"bison" = "bison"
+"cpio" = "cpio"
+"kmod" = "kmod"
+"awk" = "gawk"
+"grep" = "grep"
+"sed" = "sed"
+"tar" = "tar"
+"patch" = "patch"
+"pkgconf" = "pkgconf"
+"util-linux" = "util-linux-dev"
+"meson" = "meson"
+"ninja" = "samurai"
+"gperf" = "gperf"
+
+# X11 ecosystem — Alpine splits headers out into -dev packages.
+"libx11" = "libx11-dev"
+"xorgproto" = "xorgproto"
+"xorg-util-macros" = "util-macros"
+
+# Cross toolchains for ARM64. Alpine ships these under the
+# `*-aarch64-none-elf` / cross-toolchain names; users targeting other
+# triples should add aliases here as new ports land.
+"aarch64-linux-gnu-binutils" = "binutils-aarch64-none-elf"
+"aarch64-linux-gnu-gcc" = "gcc-aarch64-none-elf"
