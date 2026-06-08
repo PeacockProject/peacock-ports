@@ -38,6 +38,10 @@ echo "Refreshing config..."
 yes "" | make ARCH=${ARCH:-arm64} olddefconfig
 
 echo "Applying PRP kernel trim (recovery-focused built-ins only)..."
+# Per-build scratch dir so concurrent builds and per-port reruns don't trample
+# each other in the host /tmp. Override via $PRP_TMP if needed.
+PRP_TMP="${PRP_TMP:-$(mktemp -d -t prp-build-XXXXXX)}"
+trap 'rm -rf "$PRP_TMP"' EXIT
 if [ -x ./scripts/config ]; then
   # Eliminate module builds entirely for PRP speed + deterministic bring-up.
   ./scripts/config --disable MODULES || true
@@ -45,14 +49,14 @@ if [ -x ./scripts/config ]; then
   # Convert all symbols that were modular in the base config to disabled.
   # When CONFIG_MODULES=n, many tristate options flip to =y by default unless
   # we force them back off explicitly.
-  awk -F= '/^CONFIG_[A-Z0-9_]+=m$/{sub(/^CONFIG_/, "", $1); print $1}' config-prp >/tmp/prp-modules.list
+  awk -F= '/^CONFIG_[A-Z0-9_]+=m$/{sub(/^CONFIG_/, "", $1); print $1}' config-prp >"$PRP_TMP"/modules.list
   while IFS= read -r sym; do
     [ -n "$sym" ] || continue
     ./scripts/config --disable "$sym" || true
-  done </tmp/prp-modules.list
+  done <"$PRP_TMP"/modules.list
 
   # Trim heavy non-recovery stacks that materially increase build time.
-  cat >/tmp/prp-trim-force-n.list <<'EOF'
+  cat >"$PRP_TMP"/trim-force-n.list <<'EOF'
 MEDIA_SUPPORT
 SOUND
 XFS_FS
@@ -92,10 +96,10 @@ EOF
   while IFS= read -r sym; do
     [ -n "$sym" ] || continue
     ./scripts/config --disable "$sym" || true
-  done < /tmp/prp-trim-force-n.list
+  done < "$PRP_TMP"/trim-force-n.list
 
   # Force minimal symbols required by PRP on daisy.
-  cat >/tmp/prp-trim-force-y.list <<'EOF'
+  cat >"$PRP_TMP"/trim-force-y.list <<'EOF'
 DEVTMPFS
 DEVTMPFS_MOUNT
 EXT4_FS
@@ -110,13 +114,13 @@ EOF
   while IFS= read -r sym; do
     [ -n "$sym" ] || continue
     ./scripts/config --enable "$sym" || true
-  done < /tmp/prp-trim-force-y.list
+  done < "$PRP_TMP"/trim-force-y.list
 fi
 
 echo "Applying PRP display policy (single daisy panel)..."
 # PRP should not rely on initramfs module loading. Keep only the daisy panel
 # reported by lk2nd/fastboot OEM data as built-in.
-cat >/tmp/prp-display-force-y.list <<'EOF'
+cat >"$PRP_TMP"/display-force-y.list <<'EOF'
 CONFIG_DRM
 CONFIG_DRM_MSM
 CONFIG_DRM_MSM_MDSS
@@ -138,9 +142,9 @@ while IFS= read -r key; do
     -e "/^# ${key} is not set$/d" \
     .config
   printf '%s=y\n' "$key" >> .config
-done < /tmp/prp-display-force-y.list
+done < "$PRP_TMP"/display-force-y.list
 
-cat >/tmp/prp-display-force-n.list <<'EOF'
+cat >"$PRP_TMP"/display-force-n.list <<'EOF'
 CONFIG_DRM_PANEL_MDSS_ILI7807_FHD
 CONFIG_DRM_PANEL_MDSS_OTM1911_FHD
 CONFIG_DRM_PANEL_MDSS_OTM1911_FHDPLUS
@@ -158,7 +162,7 @@ while IFS= read -r key; do
     -e "/^# ${key} is not set$/d" \
     .config
   printf '# %s is not set\n' "$key" >> .config
-done < /tmp/prp-display-force-n.list
+done < "$PRP_TMP"/display-force-n.list
 
 # Daisy mainline DTS uses a generic panel compatible ("xiaomi,daisy-panel")
 # while generated panel drivers match concrete compatibles.
@@ -200,9 +204,9 @@ if grep -q '^CONFIG_MODULES=y' .config 2>/dev/null; then
   exit 1
 fi
 
-if grep -E '^CONFIG_DRM_PANEL_.*OTM1911.*=y$' .config >/tmp/prp-display-otm1911-clash.list 2>/dev/null; then
+if grep -E '^CONFIG_DRM_PANEL_.*OTM1911.*=y$' .config >"$PRP_TMP"/display-otm1911-clash.list 2>/dev/null; then
   echo "Error: conflicting OTM1911 panel symbols still enabled:"
-  cat /tmp/prp-display-otm1911-clash.list
+  cat "$PRP_TMP"/display-otm1911-clash.list
   exit 1
 fi
 
