@@ -1,0 +1,43 @@
+# MinKernel (mk) chainloader boot.img for OPPO A16 (MT6765).
+# Builds the kernel-less Android boot image containing the mk stage0
+# payload. Final artifact installed at:
+#   /usr/share/peacock/bootloaders/mk-oppo-a16-boot.img
+#
+# Pin `source` to a tagged release once PeacockProject/MinKernel starts
+# cutting them; until then we track master via the github tarball and
+# version off the commit count (0.0.<n>).
+
+[package]
+name = "minkernel-oppo-a16"
+version = "0.0.16"
+description = "MinKernel (mk) stage0 chainloader boot.img for OPPO A16 (MT6765)"
+
+[build]
+source = "https://github.com/PeacockProject/MinKernel/archive/refs/heads/master.tar.gz"
+checksum = ""
+build_deps = ["base-devel", "clang", "lld", "python", "gzip", "coreutils"]
+script = """
+tarball="$(ls -1 master.tar.gz MinKernel-*.tar.gz 2>/dev/null | head -n1)"
+if [ -n "$tarball" ]; then
+  tar -xzf "$tarball" --strip-components=1
+fi
+
+if [ ! -f Makefile ] || [ ! -d stage0/aarch64 ]; then
+  echo "Error: MinKernel sources not found after extraction"
+  exit 1
+fi
+
+# Build the device-specific kernel-less Android boot image. Default
+# DEVICE in the Makefile is oppo-a16 but pass it explicitly so the
+# manifest is self-documenting and copy-pasteable to sibling ports.
+make -j$(nproc) bootimg-nokernel DEVICE=oppo-a16
+
+BOOTIMG="out/bootimg/mk-oppo-a16-boot.img"
+if [ ! -f "$BOOTIMG" ]; then
+  echo "Error: expected boot image not found at $BOOTIMG"
+  exit 1
+fi
+
+mkdir -p stage/usr/share/peacock/bootloaders
+install -m 0644 "$BOOTIMG" stage/usr/share/peacock/bootloaders/mk-oppo-a16-boot.img
+"""
