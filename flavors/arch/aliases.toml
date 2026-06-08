@@ -1,0 +1,63 @@
+# Arch flavor build-deps alias table.
+#
+# Canonical baseline: peacock-ports manifests have always been written using
+# Arch package names for build_deps, so this table is an identity map. Every
+# build_deps / build_dep_packages entry that appears anywhere under base/ or
+# device/ as of the Phase 1 migration is listed here, mapping to itself.
+#
+# The Peacock CLI / feather will look up build_deps names against this table
+# when materialising the build chroot for flavor = "arch". Entries should be
+# added here when a new manifest introduces a new Arch package name.
+
+[aliases]
+"aarch64-linux-gnu-binutils" = "aarch64-linux-gnu-binutils"
+"aarch64-linux-gnu-gcc" = "aarch64-linux-gnu-gcc"
+"arm-none-eabi-binutils" = "arm-none-eabi-binutils"
+"arm-none-eabi-gcc" = "arm-none-eabi-gcc"
+"awk" = "awk"
+"base-devel" = "base-devel"
+"bash" = "bash"
+"bc" = "bc"
+"bison" = "bison"
+"clang" = "clang"
+"cmake" = "cmake"
+"coreutils" = "coreutils"
+"cpio" = "cpio"
+"diffutils" = "diffutils"
+"dtc" = "dtc"
+"extra-cmake-modules" = "extra-cmake-modules"
+"flex" = "flex"
+"gcc" = "gcc"
+"gettext" = "gettext"
+"go" = "go"
+"gperf" = "gperf"
+"grep" = "grep"
+"gzip" = "gzip"
+"kmod" = "kmod"
+"libx11" = "libx11"
+"lld" = "lld"
+"make" = "make"
+"meson" = "meson"
+"ncurses" = "ncurses"
+"ninja" = "ninja"
+"openssl" = "openssl"
+"patch" = "patch"
+"perl" = "perl"
+"pixman" = "pixman"
+"pkgconf" = "pkgconf"
+"python" = "python"
+"python-docutils" = "python-docutils"
+"python-jinja" = "python-jinja"
+"qt5-base" = "qt5-base"
+"qt5-declarative" = "qt5-declarative"
+"qt5-tools" = "qt5-tools"
+"qt6-declarative" = "qt6-declarative"
+"qt6-tools" = "qt6-tools"
+"sed" = "sed"
+"tar" = "tar"
+"toolchain-arm-eabi" = "toolchain-arm-eabi"
+"toolchain-arm-linux-gnueabihf" = "toolchain-arm-linux-gnueabihf"
+"util-linux" = "util-linux"
+"xorg-server-devel" = "xorg-server-devel"
+"xorg-util-macros" = "xorg-util-macros"
+"xorgproto" = "xorgproto"

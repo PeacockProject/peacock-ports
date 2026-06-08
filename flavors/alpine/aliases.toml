@@ -1,0 +1,6 @@
+# Alpine flavor build-deps alias table.
+#
+# Populate as Alpine-flavor ports land. Each key maps an Arch build_deps name
+# to its Alpine equivalent.
+
+[aliases]

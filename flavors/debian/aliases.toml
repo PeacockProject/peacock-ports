@@ -1,0 +1,6 @@
+# Debian flavor build-deps alias table.
+#
+# Populate as Debian-flavor ports land. Each key maps an Arch build_deps name
+# to its Debian equivalent.
+
+[aliases]
