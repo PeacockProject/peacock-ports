@@ -1,7 +1,27 @@
 [device]
 name = "Samsung Galaxy S4 (Qualcomm)"
 architecture = "armv7"
+soc = "msm8960"
+status = "stable"
 flash_method = "heimdall-bootimg"
+
+# Support matrix surfaced by the peacock-builder GUI. Values: ok | partial | none.
+[support]
+touch = "ok"
+gpu = "ok"
+wifi = "ok"
+bluetooth = "ok"
+calls = "ok"
+sms = "ok"
+modem = "partial"
+modem_note = "3G + voice work; VoLTE is not implemented."
+camrear = "ok"
+camfront = "none"
+camfront_note = "Front sensor driver missing from upstream."
+gps = "ok"
+sensors = "ok"
+battery = "ok"
+audio = "ok"
 
 [boot]
 cmdline = "androidboot.hardware=qcom user_debug=31 zcache msm_rtb.filter=0x3F ehci-hcd.park=3 buildvariant=userdebug earlyprintk console=tty0,115200 console=tty1,115200 loglevel=7 fbcon=map:0"

@@ -1,7 +1,31 @@
 [device]
 name = "OPPO A16"
 architecture = "aarch64"
+soc = "mt6765"
+status = "testing"
 flash_method = "fastboot-bootimg"
+
+# Support matrix surfaced by the peacock-builder GUI. Values: ok | partial | none.
+# Add a "<key>_note" sibling when the state benefits from a short user-facing
+# explanation.
+[support]
+touch = "ok"
+gpu = "ok"
+wifi = "partial"
+wifi_note = "Driver loads + associates; throughput is low."
+bluetooth = "none"
+calls = "none"
+sms = "none"
+modem = "none"
+modem_note = "MTK SCP firmware reinit still WIP."
+camrear = "none"
+camfront = "none"
+gps = "none"
+sensors = "partial"
+sensors_note = "Accel + light only; no gyro / proximity yet."
+battery = "ok"
+audio = "partial"
+audio_note = "Speakers OK; headphone jack untested."
 
 [boot]
 cmdline = ""

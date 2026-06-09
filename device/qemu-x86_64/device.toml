@@ -1,7 +1,31 @@
 [device]
 name = "QEMU x86_64"
 architecture = "x86_64"
+soc = "qemu / uefi"
+status = "stable"
 flash_method = "qemu"
+
+# Support matrix surfaced by the peacock-builder GUI. Values: ok | partial | none.
+# QEMU is a virtual target — radios/cameras/sensors don't exist by definition,
+# so they're marked "none" with explanatory notes.
+[support]
+touch = "ok"
+touch_note = "Mouse/touch passthrough from host."
+gpu = "ok"
+wifi = "ok"
+wifi_note = "Virtual NIC bridged from host."
+bluetooth = "none"
+bluetooth_note = "No virtual BT in this profile."
+calls = "none"
+sms = "none"
+modem = "none"
+camrear = "none"
+camfront = "none"
+gps = "none"
+sensors = "none"
+battery = "ok"
+audio = "partial"
+audio_note = "Works when the host supplies an audio backend (PulseAudio / PipeWire)."
 
 [boot]
 cmdline = "root=LABEL=ROOT rw console=ttyS0,115200 loglevel=7"

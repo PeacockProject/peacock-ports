@@ -1,7 +1,29 @@
 [device]
 name = "Xiaomi Mi A2 Lite"
 architecture = "aarch64"
+soc = "msm8953"
+status = "stable"
 flash_method = "fastboot-bootimg"
+
+# Support matrix surfaced by the peacock-builder GUI. Values: ok | partial | none.
+[support]
+touch = "ok"
+gpu = "ok"
+wifi = "ok"
+bluetooth = "ok"
+calls = "partial"
+calls_note = "Modem links up; audio routing in active development."
+sms = "ok"
+modem = "partial"
+modem_note = "Cellular data works; VoLTE not yet implemented."
+camrear = "partial"
+camrear_note = "Stills work; video capture is unstable."
+camfront = "none"
+gps = "ok"
+sensors = "partial"
+sensors_note = "Accel + light + proximity; gyro is flaky."
+battery = "ok"
+audio = "ok"
 
 [boot]
 cmdline = "quiet loglevel=2"
