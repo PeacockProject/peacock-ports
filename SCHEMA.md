@@ -248,3 +248,169 @@ proprietary IDEs) via `/compat/glibc/`.
 See also the `[notes]` table in that manifest for the cross-compile caveats —
 this is a build skeleton; Phase 8+ will add a binary-cache prebuilt path so
 on-device musl hosts do not have to cross-compile glibc.
+
+---
+
+## Worked examples
+
+The short `[install]`-table snippets earlier in this document show the
+syntax in isolation. The three subsections below point at full real (or, for
+`layout = "app"`, hypothetical) `package.toml` files so the `[install]` +
+`[package]` + `[build]` triple is visible together.
+
+### Worked example: `layout = "system"`
+
+The 51-port baseline all uses `layout = "system"` after the Phase 1
+mechanical pass. The canonical short example is
+[`base/bash/package.toml`](./base/bash/package.toml):
+
+```toml
+[package]
+name = "bash"
+version = "5.3.9.1"
+description = "The GNU Bourne Again shell (Arch version)"
+provides = ["sh"]
+
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
+[build]
+source = "https://ftp.gnu.org/gnu/bash/bash-5.3.tar.gz"
+checksum = ""
+build_deps = ["gcc", "make", "bison", "ncurses", "awk", "grep", "sed"]
+script = """
+tarball="$(ls -1 bash-*.tar.gz 2>/dev/null | head -n1)"
+if [ -n "$tarball" ]; then
+  tar -xzf "$tarball" --strip-components=1
+fi
+./configure --prefix=/usr
+make -j4
+make install DESTDIR="$(pwd)/stage"
+ln -sf bash stage/usr/bin/sh
+cp -a stage/usr ./
+"""
+```
+
+Things to notice:
+
+- `[install].prefix` is omitted; it defaults to `/usr` for
+  `layout = "system"`.
+- The build script stages everything under `stage/usr/...`, matching the
+  default prefix.
+- The legacy `[package].provides = ["sh"]` array shorthand is preserved —
+  equivalent to a top-level `[provides]\n sh = "*"`.
+
+### Worked example: `layout = "app"`
+
+> **No `app/` ports have landed in the ports tree yet.** This subsection is
+> a hypothetical manifest showing the canonical shape Phase 5 apps will
+> use. See the Phase 5 entry in `Peacock/BACKLOG.md` for the open work
+> blocking the first real app port.
+
+A speculative `app/com.example.notes/package.toml`:
+
+```toml
+[package]
+name = "com.example.notes"
+version = "1.2.3"
+description = "Notes app for Peacock OS"
+runtime = "compat-glibc"            # links against glibc; uses /compat/glibc
+                                    # on musl-base flavors transparently
+
+[install]
+layout = "app"
+# prefix defaults to "/apps/com.example.notes"
+# files defaults to the full stage tree; explicit list only if you want
+# to ship a subset of what the build produced
+files = [
+  "bin/notes",
+  "lib/libnotes-core.so",
+  "share/com.example.notes/",
+  "manifest.toml",                  # the runtime launcher manifest, separate
+                                    # from this build-time package.toml
+]
+
+[build]
+source = "https://example.com/notes-1.2.3.tar.gz"
+checksum = ""
+build_deps = ["base-devel", "qt6-base"]
+script = """
+tar -xzf notes-*.tar.gz --strip-components=1
+cmake -S . -B build -DCMAKE_INSTALL_PREFIX=/apps/com.example.notes
+cmake --build build -j"$(nproc)"
+cmake --install build --prefix /apps/com.example.notes \
+      --destdir "$(pwd)/stage"
+"""
+
+[provides]
+com.example.notes = "1.2"
+
+[conflicts]
+com.example.notes-legacy = "*"
+```
+
+Things to notice:
+
+- The package name uses reverse-DNS — convention for `layout = "app"` so
+  `/apps/<name>/` is globally unique.
+- `[install].prefix` defaults to `/apps/<name>` where `<name>` is
+  `[package].name`. The cmake invocation above bakes that prefix into the
+  install layout via `DESTDIR + --prefix`.
+- `runtime = "compat-glibc"` lets the app declare its libc requirement
+  once; `ftr` handles namespace pivoting at launch time on musl flavors
+  (this part of `ftr` does not exist yet — Phase 5 work).
+- Per-app state goes to `/data/com.example.notes/`, not anywhere under
+  `/apps/`. The manifest schema does not currently describe `/data/`
+  policy; that schema lands with Phase 5 too.
+
+### Worked example: `layout = "compat"`
+
+The canonical reference is [`compat/glibc/package.toml`](./compat/glibc/package.toml).
+A trimmed version showing the load-bearing pieces:
+
+```toml
+[package]
+name = "compat-glibc"
+version = "2.40"
+description = "glibc 2.40 runtime tree for /compat/glibc/, used by musl-base flavors..."
+flavor = ["alpine"]                 # only musl-base flavors need this shim
+runtime = "glibc"
+
+# Phase 7 schema migration — first compat-layout port.
+[install]
+layout = "compat"
+prefix = "/compat/glibc"
+
+[build]
+source = "https://ftp.gnu.org/gnu/glibc/glibc-2.40.tar.gz"
+checksum = ""
+build_deps = ["base-devel", "bison", "gawk", "python"]
+script = """
+# ... configures --prefix=/compat/glibc, builds, installs to stage/.
+"""
+
+[provides]
+glibc = "2.40"
+
+[notes]
+status = "skeleton"
+caveats = [
+  "This is a build skeleton. Actual cross-compile for Alpine targets...",
+  # ...
+]
+```
+
+Things to notice:
+
+- `prefix` is set explicitly to `/compat/glibc` even though the default
+  `/compat/<runtime>` would resolve to the same string — the convention is
+  to be explicit for `layout = "compat"` so the install path is greppable.
+- `[package].runtime = "glibc"` matches the directory name `compat/glibc/`
+  per the "Repository tree conventions" section above.
+- `[package].flavor = ["alpine"]` declares this port is only meaningful on
+  musl-base flavors. Building it on Arch still works but produces a
+  harmless duplicate glibc tree.
+- The non-standard `[notes]` table is preserved by the parser (round-trips
+  cleanly) even though no consumer reads it yet — useful for parking
+  caveats on the port for future readers.
