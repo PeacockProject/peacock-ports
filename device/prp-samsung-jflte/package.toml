@@ -1,0 +1,50 @@
+# PRP recovery boot.img for Samsung Galaxy S4 (jflte / MSM8960).
+# Same shape as prp-oppo-a16 / prp-xiaomi-daisy. Uses the upstream
+# Peacock jflte kernel; PRP's resolve_kernel_image picks it up from
+# the linux-samsung-jflte port's build cache when KERNEL_IMAGE is
+# left empty in configs/jflte.env (the current default after the
+# /home/tiel path cleanup in PRP master 7ed4dc2).
+#
+# Final artifact installed at:
+#   /usr/share/peacock/recovery/prp-samsung-jflte-recovery.img
+
+[package]
+name = "prp-samsung-jflte"
+version = "0.0.30"
+description = "PRP (Peacock Recovery Project) recovery boot.img for Samsung Galaxy S4 (jflte / MSM8960)"
+depends = ["linux-samsung-jflte", "busybox"]
+
+# Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
+[install]
+layout = "system"
+
+[build]
+source = "https://github.com/PeacockProject/PRP/archive/refs/heads/master.tar.gz"
+checksum = ""
+build_deps = ["base-devel", "android-tools", "python", "cpio", "gzip", "coreutils", "sed", "file"]
+script = """
+tarball="$(ls -1 master.tar.gz PRP-*.tar.gz 2>/dev/null | head -n1)"
+if [ -n "$tarball" ]; then
+  tar -xzf "$tarball" --strip-components=1
+fi
+
+if [ ! -f Makefile ] || [ ! -f configs/jflte.env ]; then
+  echo "Error: PRP sources not found after extraction"
+  exit 1
+fi
+
+OUT_DIR="${OUT_DIR:-$(pwd)/out/jflte}"
+mkdir -p "$OUT_DIR"
+
+make initramfs TARGET=jflte OUT_DIR="$OUT_DIR"
+make bootimg TARGET=jflte OUT_DIR="$OUT_DIR"
+
+BOOTIMG="$OUT_DIR/prp-jflte-recovery.img"
+if [ ! -f "$BOOTIMG" ]; then
+  echo "Error: expected PRP boot image not found at $BOOTIMG"
+  exit 1
+fi
+
+mkdir -p stage/usr/share/peacock/recovery
+install -m 0644 "$BOOTIMG" stage/usr/share/peacock/recovery/prp-samsung-jflte-recovery.img
+"""
