@@ -10,12 +10,7 @@ layout = "system"
 [build]
 source = "https://ftp.gnu.org/gnu/make/make-4.4.1.tar.gz"
 checksum = ""
-script = """
-tarball="$(ls -1 make-*.tar.gz 2>/dev/null | head -n1)"
-if [ -n "$tarball" ]; then
-  tar -xzf "$tarball" --strip-components=1
-fi
-./configure --prefix="$(pwd)/stage" --without-guile
-make -j$(nproc)
-make install
-"""
+type = "autotools"
+configure_args = "--without-guile"
+# No build.sh: the autotools type extracts, ./configure --prefix=/usr
+# --without-guile, make, make install DESTDIR=$pkgdir.
