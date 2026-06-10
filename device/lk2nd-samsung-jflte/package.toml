@@ -26,12 +26,16 @@ source = "https://github.com/PeacockProject/lk2nd_peacock/archive/refs/heads/mas
 checksum = ""
 build_deps = [
   "base-devel",
-  "arm-none-eabi-binutils",
-  "arm-none-eabi-gcc",
   "dtc",
   "python",
   "coreutils",
 ]
+# Bare-metal ARM firmware: always cross, arm-none-eabi via c-toolchain
+# capability (see lk2nd-xiaomi-daisy).
+use_qemu = false
+target_arch = "armv7h"
+triple = "arm-none-eabi"
+capabilities = ["c-toolchain"]
 script = """
 tarball="$(ls -1 master.tar.gz lk2nd_peacock-*.tar.gz 2>/dev/null | head -n1)"
 if [ -n "$tarball" ]; then

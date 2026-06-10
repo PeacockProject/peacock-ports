@@ -22,12 +22,19 @@ source = "https://github.com/PeacockProject/lk2nd_peacock/archive/refs/heads/mas
 checksum = ""
 build_deps = [
   "base-devel",
-  "arm-none-eabi-binutils",
-  "arm-none-eabi-gcc",
   "dtc",
   "python",
   "coreutils",
 ]
+# lk2nd is bare-metal ARM firmware: always cross-compiled (never qemu —
+# there's no libc to run a native compiler against). The arm-none-eabi
+# toolchain comes from the c-toolchain capability with a bare-metal triple
+# override; the build script's TOOLCHAIN_PREFIX=arm-none-eabi- then finds
+# arm-none-eabi-gcc/binutils on PATH. No hardcoded cross packages.
+use_qemu = false
+target_arch = "armv7h"
+triple = "arm-none-eabi"
+capabilities = ["c-toolchain"]
 script = """
 tarball="$(ls -1 master.tar.gz lk2nd_peacock-*.tar.gz 2>/dev/null | head -n1)"
 if [ -n "$tarball" ]; then
