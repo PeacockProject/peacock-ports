@@ -12,6 +12,11 @@
 [aliases]
 "aarch64-linux-gnu-binutils" = "aarch64-linux-gnu-binutils"
 "aarch64-linux-gnu-gcc" = "aarch64-linux-gnu-gcc"
+# Abstract cross-toolchain tokens. Peacock injects "gcc-<target_arch>"
+# when a port builds in cross mode (use_qemu=false) for a foreign target;
+# this expands to the distro's cross compiler + binutils. Ports declare
+# only [build].target_arch — never these package names directly.
+"gcc-aarch64" = "aarch64-linux-gnu-gcc aarch64-linux-gnu-binutils"
 "arm-none-eabi-binutils" = "arm-none-eabi-binutils"
 "arm-none-eabi-gcc" = "arm-none-eabi-gcc"
 "awk" = "awk"

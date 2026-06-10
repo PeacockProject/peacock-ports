@@ -10,9 +10,14 @@ layout = "system"
 [build]
 source = "https://github.com/msm8953-mainline/linux/archive/v6.16.3-r0.tar.gz"
 checksum = "f84c20e6dd6acf205fe1b64632a00d66307cc4676f5dc9b1d5ff7fe7867e2b1e"
-build_deps = ["base-devel", "bc", "dtc", "kmod", "cpio", "python", "perl", "openssl", "aarch64-linux-gnu-binutils", "aarch64-linux-gnu-gcc"]
+build_deps = ["base-devel", "bc", "dtc", "kmod", "cpio", "python", "perl", "openssl"]
 use_qemu = false
 cross_compile = "aarch64-linux-gnu-"
+# Cross-builds for aarch64: Peacock injects the distro's cross toolchain
+# (gcc-aarch64 → aarch64-linux-gnu-gcc/binutils on Arch, gcc-aarch64-linux-gnu
+# /binutils-aarch64-linux-gnu on Debian) from this. Don't name cross
+# packages in build_deps — they aren't portable across flavors.
+target_arch = "aarch64"
 
 script = """
 echo "Copying config..."
