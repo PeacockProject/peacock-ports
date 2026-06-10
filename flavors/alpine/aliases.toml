@@ -48,10 +48,3 @@
 # triples should add aliases here as new ports land.
 "aarch64-linux-gnu-binutils" = "binutils-aarch64-none-elf"
 "aarch64-linux-gnu-gcc" = "gcc-aarch64-none-elf"
-# Abstract cross-toolchain token (see flavors/arch/aliases.toml). NOTE:
-# Alpine only ships a bare-metal (-none-elf) aarch64 cross toolchain, not
-# a linux-gnu one, so cross-building a Linux kernel on the Alpine flavor
-# is not reliable yet — prefer use_qemu=true (native build under qemu) on
-# Alpine until a linux-gnu cross toolchain is sorted. Kept here so the
-# token resolves rather than failing on a missing package.
-"gcc-aarch64" = "gcc-aarch64-none-elf binutils-aarch64-none-elf"

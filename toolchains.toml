@@ -1,0 +1,49 @@
+# Build-capability toolchain resolution.
+#
+# Ports declare abstract capabilities (e.g. capabilities = ["c-toolchain"])
+# plus a target_arch, instead of naming distro-specific toolchain packages.
+# Peacock resolves each capability per (build mode × target arch × flavor)
+# using the tables below, with plan-time fail-fast on unsupported combos.
+#
+# See Peacock/docs/design/toolchain-capabilities.md for the full design.
+#
+# Substitution tokens usable in any package string:
+#   {triple}  — the GNU triple from [triples] (CROSS_COMPILE + Arch/Fedora names)
+#   {debarch} — the Debian/Ubuntu arch tag from [debarch] (crossbuild-essential-*)
+#
+# Principle: prefer the distro's own meta-package / group (Debian's
+# crossbuild-essential-*, build-essential; Arch's base-devel group;
+# Alpine's build-base) so the distro maintains its contents. Enumerate
+# individual packages only where the distro has no meta (Arch cross).
+
+# GNU triple per arch. Source of truth for CROSS_COMPILE and for distros
+# whose package names are triple-based (Arch, Fedora).
+[triples]
+aarch64 = "aarch64-linux-gnu"
+armv7h  = "arm-linux-gnueabihf"
+x86_64  = "x86_64-pc-linux-gnu"
+
+# Debian/Ubuntu arch tags, for their crossbuild-essential-<debarch> metas.
+[debarch]
+aarch64 = "arm64"
+armv7h  = "armhf"
+
+# --- c-toolchain: a C/C++ compiler + binutils for the target ---
+
+# Native (qemu / host==target): native toolchain in the TARGET chroot.
+[capabilities.c-toolchain.native.arch]
+packages = ["base-devel"]
+[capabilities.c-toolchain.native.debian]
+packages = ["build-essential"]
+[capabilities.c-toolchain.native.alpine]
+packages = ["build-base"]
+
+# Cross: the distro's blessed cross toolchain, in the HOST chroot.
+[capabilities.c-toolchain.cross.arch]
+# Arch has no cross meta-package — enumerate the triple-named packages.
+packages = ["{triple}-gcc", "{triple}-binutils"]
+[capabilities.c-toolchain.cross.debian]
+# Debian maintains the contents of this meta; we just name it.
+packages = ["crossbuild-essential-{debarch}"]
+[capabilities.c-toolchain.cross.alpine]
+unsupported = "Alpine ships no linux-gnu cross toolchain; build this port with use_qemu = true"

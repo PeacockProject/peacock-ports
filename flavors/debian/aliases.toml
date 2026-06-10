@@ -76,9 +76,6 @@
 # share the Arch package name verbatim.
 "aarch64-linux-gnu-binutils" = "binutils-aarch64-linux-gnu"
 "aarch64-linux-gnu-gcc" = "gcc-aarch64-linux-gnu"
-# Abstract cross-toolchain token (see flavors/arch/aliases.toml). Debian
-# reorders the triple: gcc-<triple> / binutils-<triple>.
-"gcc-aarch64" = "gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu"
 "arm-none-eabi-binutils" = "binutils-arm-none-eabi"
 "arm-none-eabi-gcc" = "gcc-arm-none-eabi"
 # Note: Arch's `toolchain-arm-eabi` meta-port pulls binutils + gcc together;
