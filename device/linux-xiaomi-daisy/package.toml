@@ -162,32 +162,26 @@ else
   make $MAKE_ARGS -j"$JOBS" Image.gz dtbs
 fi
 
+# Full-kernel package tree (installed into the OS rootfs by ftr):
+#   stage/boot/zImage            kernel image (Image.gz + dtb)
+#   stage/boot/dtbs/qcom/...      device tree
+#   stage/usr/lib/modules/...     modules
 echo "Compiling modules..."
-rm -rf stage
-mkdir -p stage
+rm -rf stage stage-prp
+mkdir -p stage/boot
 if grep -q "^CONFIG_MODULES=y" .config 2>/dev/null; then
   make $MAKE_ARGS -j"$JOBS" modules
-  make $MAKE_ARGS modules_install INSTALL_MOD_PATH="$(pwd)/stage"
+  make $MAKE_ARGS modules_install INSTALL_MOD_PATH="$(pwd)/stage/usr"
 fi
 
 stage_daisy_dtb
 if [ -f "arch/arm64/boot/Image.gz" ]; then
-  cat arch/arm64/boot/Image.gz stage/boot/dtbs/qcom/msm8953-xiaomi-daisy.dtb > zImage
+  cat arch/arm64/boot/Image.gz stage/boot/dtbs/qcom/msm8953-xiaomi-daisy.dtb > stage/boot/zImage
 elif [ -f "arch/arm64/boot/Image" ]; then
-  cat arch/arm64/boot/Image stage/boot/dtbs/qcom/msm8953-xiaomi-daisy.dtb > zImage
+  cat arch/arm64/boot/Image stage/boot/dtbs/qcom/msm8953-xiaomi-daisy.dtb > stage/boot/zImage
 else
   echo "Error: kernel image not found"
   exit 1
-fi
-
-if [ -d "stage/lib/modules" ]; then
-  tar -czf modules.tar.gz -C stage lib/modules
-fi
-
-# Export full-kernel artifacts in package root so peacock extracts them from cache.
-cp zImage stage/zImage
-if [ -f modules.tar.gz ]; then
-  cp modules.tar.gz stage/modules.tar.gz
 fi
 
 ##############################################################################
@@ -358,10 +352,18 @@ EOF
   echo "Compiling PRP kernel Image.gz + daisy DTB only..."
   make $MAKE_ARGS -j"$JOBS" Image.gz "$DTB_MAKE_TARGET"
 
-  stage_daisy_dtb
-  cat arch/arm64/boot/Image.gz stage/boot/dtbs/qcom/msm8953-xiaomi-daisy.dtb > zImage-prp
-
-  # Export the PRP kernel as a sibling of zImage; the recovery prefers it.
-  cp zImage-prp stage/zImage-prp
+  # PRP-kernel package tree (stage-prp/) — packaged separately as
+  # linux-xiaomi-daisy-prp, a build dependency of PRP images only, never
+  # shipped in the OS rootfs. It IS the kernel within that package, so it
+  # is just boot/zImage (Image.gz + dtb concatenated).
+  prp_dtb=""
+  for d in \
+    arch/arm64/boot/dts/qcom/msm8953-xiaomi-daisy.dtb \
+    arch/arm64/boot/dts/qcom/msm8953-xiaomi-daisy-r5.dtb; do
+    [ -f "$d" ] && prp_dtb="$d" && break
+  done
+  [ -n "$prp_dtb" ] || { echo "Error: PRP daisy DTB not found after build"; exit 1; }
+  mkdir -p stage-prp/boot
+  cat arch/arm64/boot/Image.gz "$prp_dtb" > stage-prp/boot/zImage
 fi
 """
