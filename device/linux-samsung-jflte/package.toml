@@ -14,12 +14,14 @@ checksum = "26475c4aeef1e105ccc53b17bc8e468300d28b6d442eee7f3f300806571c0bc6"
 build_dep_packages = ["toolchain-arm-eabi", "bash", "bc", "bison", "flex", "perl", "ncurses", "openssl", "gettext", "make"]
 use_qemu = false
 cross_compile = "arm-eabi-"
+# Kernel defconfig file, referenced by the script as $KERNEL_CONFIG.
+kernel_config = "config"
 
 # Build script (Real compilation)
 # Requires arm-none-eabi-gcc and make on host
 script = """
 echo "Copying config..."
-cp config .config
+cp "${KERNEL_CONFIG:-config}" .config
 
 echo "Applying netns compatibility patch..."
 patch -p1 < netns-compat.patch

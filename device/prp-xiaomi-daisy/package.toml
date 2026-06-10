@@ -1,7 +1,8 @@
 # PRP recovery boot.img for Xiaomi Mi A2 Lite (daisy / MSM8953).
-# Same shape as prp-oppo-a16; uses the PRP-focused kernel
-# (linux-xiaomi-daisy-prp) which trims the upstream kernel to a
-# recovery-only built-in set for fast boot and deterministic bring-up.
+# Same shape as prp-oppo-a16. Uses the PRP-trimmed kernel built by the
+# linux-xiaomi-daisy port (prp_kernel_config), staged as zImage-prp:
+# resolve_kernel_image prefers that sibling over the full zImage. One
+# kernel source + toolchain serves both the OS and recovery kernels.
 #
 # Final artifact installed at:
 #   /usr/share/peacock/recovery/prp-xiaomi-daisy-recovery.img
@@ -10,7 +11,7 @@
 name = "prp-xiaomi-daisy"
 version = "0.0.30"
 description = "PRP (Peacock Recovery Project) recovery boot.img for Xiaomi Mi A2 Lite (daisy / MSM8953)"
-depends = ["linux-xiaomi-daisy-prp", "busybox"]
+depends = ["linux-xiaomi-daisy", "busybox"]
 
 # Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
 [install]
