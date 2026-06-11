@@ -25,6 +25,7 @@ fi
   --without-python \
   --disable-bash-completion \
   --disable-rpath \
+  --disable-lsfd \
   --enable-static-programs=losetup,blkid,partx,lsblk
 make -j"$(nproc)"
 make install
