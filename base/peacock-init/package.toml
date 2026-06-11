@@ -1,0 +1,39 @@
+[package]
+name = "peacock-init"
+version = "0.1.0"
+description = "PeacockOS base supervisor / PID 1. Boots the base, enters the active flavor (plain chroot in phase 1, PID+mount namespaces later), and stays resident to supervise + recover. Installs /sbin/peacock-init and the /sbin/init symlink the initramfs hands off to."
+
+[install]
+layout = "system"
+
+[build]
+source = ""
+checksum = ""
+use_qemu = false
+build_deps = ["base-devel", "go"]
+# Built for the consuming device arch via Go cross-compilation. CGO is
+# disabled, so no C cross toolchain is actually used — the c-toolchain
+# capability is only here to resolve the device arch ($ARCH) and satisfy the
+# cross-build guard. The Go source is vendored as aux files (main.go, go.mod).
+capabilities = ["c-toolchain"]
+script = """
+mkdir -p stage/sbin
+
+# Map the kernel-style $ARCH the build injects to GOARCH.
+case "${ARCH:-arm64}" in
+  arm64)  GOARCH=arm64 ;;
+  arm)    GOARCH=arm; export GOARM=7 ;;
+  x86_64) GOARCH=amd64 ;;
+  *)      GOARCH="${ARCH}" ;;
+esac
+export GOARCH GOOS=linux CGO_ENABLED=0
+# Offline + self-contained: no module deps, no toolchain download.
+export GOPROXY=off GOFLAGS=-mod=mod GOTOOLCHAIN=local
+export GOCACHE=/tmp/peacock-init-gocache GOPATH=/tmp/peacock-init-gopath HOME=/tmp
+
+echo "Building peacock-init for GOARCH=$GOARCH (ARCH=${ARCH:-?})..."
+go build -trimpath -ldflags "-s -w" -o stage/sbin/peacock-init .
+
+# /sbin/init -> peacock-init so the initramfs switch_root hands off to us.
+ln -sf peacock-init stage/sbin/init
+"""
