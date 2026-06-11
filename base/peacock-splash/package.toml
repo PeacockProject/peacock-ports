@@ -10,13 +10,13 @@ layout = "system"
 [build]
 source = ""
 checksum = ""
-build_dep_packages = ["toolchain-arm-linux-gnueabihf"]
 use_qemu = false
-cross_compile = "arm-linux-gnueabihf-"
+build_deps = ["base-devel"]
+# Arch-agnostic: the cross toolchain + CROSS_COMPILE resolve per consuming
+# device arch via the c-toolchain capability (no hardcoded triple).
+capabilities = ["c-toolchain"]
 script = """
 mkdir -p stage/usr/bin
 cp splash.c stage/usr/bin/splash.c
-${CROSS_COMPILE:-}gcc -static -o stage/usr/bin/peacock-splash splash.c -lm
-STRIP_BIN="${CROSS_COMPILE:-}strip"
-$STRIP_BIN -s stage/usr/bin/peacock-splash 2>/dev/null || strip -s stage/usr/bin/peacock-splash
+${CROSS_COMPILE:-}gcc -static -O2 -s -o stage/usr/bin/peacock-splash splash.c -lm
 """

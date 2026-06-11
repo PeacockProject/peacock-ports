@@ -26,7 +26,7 @@ checksum = ""
 build_deps = ["base-devel", "android-tools", "python", "cpio", "gzip", "coreutils", "sed", "file", "zig"]
 # Our own packages, ftr-installed into this build chroot before the build:
 # the PRP kernel (-> /boot/zImage) and static busybox (-> /usr/bin/busybox).
-build_dep_packages = ["linux-xiaomi-daisy-prp", "busybox"]
+build_dep_packages = ["linux-xiaomi-daisy-prp", "busybox", "peacock-splash"]
 script = """
 tarball="$(ls -1 master.tar.gz PRP-*.tar.gz 2>/dev/null | head -n1)"
 if [ -n "$tarball" ]; then
