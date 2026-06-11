@@ -183,6 +183,8 @@ else
   echo "Error: kernel image not found"
   exit 1
 fi
+# Ship the resolved kernel config (PRP's check-kernel-config.sh reads it).
+cp .config stage/boot/config
 
 ##############################################################################
 # PASS 2 — PRP-trimmed kernel ($PRP_KERNEL_CONFIG) -> zImage-prp
@@ -365,5 +367,6 @@ EOF
   [ -n "$prp_dtb" ] || { echo "Error: PRP daisy DTB not found after build"; exit 1; }
   mkdir -p stage-prp/boot
   cat arch/arm64/boot/Image.gz "$prp_dtb" > stage-prp/boot/zImage
+  cp .config stage-prp/boot/config
 fi
 """
