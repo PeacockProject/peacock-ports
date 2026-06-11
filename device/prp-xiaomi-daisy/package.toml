@@ -21,7 +21,9 @@ layout = "system"
 [build]
 source = "https://github.com/PeacockProject/PRP/archive/refs/heads/master.tar.gz"
 checksum = ""
-build_deps = ["base-devel", "android-tools", "python", "cpio", "gzip", "coreutils", "sed", "file"]
+# zig: PRP cross-compiles its static musl initramfs binaries with `zig cc`
+# (ZIG_TARGET, e.g. aarch64-linux-musl).
+build_deps = ["base-devel", "android-tools", "python", "cpio", "gzip", "coreutils", "sed", "file", "zig"]
 # Our own packages, ftr-installed into this build chroot before the build:
 # the PRP kernel (-> /boot/zImage) and static busybox (-> /usr/bin/busybox).
 build_dep_packages = ["linux-xiaomi-daisy-prp", "busybox"]
