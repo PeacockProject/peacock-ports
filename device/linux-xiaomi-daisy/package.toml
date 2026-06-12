@@ -87,17 +87,27 @@ detect_dtb() {
   fi
 }
 
-# Stage the daisy DTB into stage/boot/dtbs/qcom (canonical name).
+# Stage the daisy DTB into stage/boot/dtbs/qcom (canonical name). Bulletproof:
+# build the DTB if it's missing, accept either the standard or -r5 source, and
+# FAIL LOUDLY if the staged file is empty. A silently-empty dtbs/ previously
+# shipped a DTB-less kernel feather and bricked the boot ("No DTB configured").
 stage_daisy_dtb() {
   mkdir -p stage/boot/dtbs/qcom
-  if [ -f "arch/arm64/boot/dts/qcom/msm8953-xiaomi-daisy.dtb" ]; then
-    cp arch/arm64/boot/dts/qcom/msm8953-xiaomi-daisy.dtb stage/boot/dtbs/qcom/
-  elif [ -f "arch/arm64/boot/dts/qcom/msm8953-xiaomi-daisy-r5.dtb" ]; then
-    cp arch/arm64/boot/dts/qcom/msm8953-xiaomi-daisy-r5.dtb stage/boot/dtbs/qcom/msm8953-xiaomi-daisy.dtb
-  else
-    echo "Error: daisy DTB not found after build"
-    exit 1
+  # Ensure the DTB is actually built (an earlier make target may have skipped it).
+  if [ -n "${DTB_MAKE_TARGET:-}" ] && [ ! -f "${DTB_TARGET:-/nonexistent}" ]; then
+    make ${MAKE_ARGS:-} "$DTB_MAKE_TARGET" || true
   fi
+  src=""
+  for c in \
+    "${DTB_TARGET:-}" \
+    arch/arm64/boot/dts/qcom/msm8953-xiaomi-daisy.dtb \
+    arch/arm64/boot/dts/qcom/msm8953-xiaomi-daisy-r5.dtb; do
+    if [ -n "$c" ] && [ -f "$c" ]; then src="$c"; break; fi
+  done
+  [ -n "$src" ] || { echo "Error: daisy DTB not found after build"; exit 1; }
+  cp "$src" stage/boot/dtbs/qcom/msm8953-xiaomi-daisy.dtb
+  [ -s stage/boot/dtbs/qcom/msm8953-xiaomi-daisy.dtb ] || { echo "Error: staged daisy DTB is empty"; exit 1; }
+  echo "Staged daisy DTB: $src ($(wc -c < "$src") bytes)"
 }
 
 ##############################################################################
@@ -175,10 +185,14 @@ if grep -q "^CONFIG_MODULES=y" .config 2>/dev/null; then
 fi
 
 stage_daisy_dtb
+# zImage is the gzip-compressed kernel ALONE. The DTB is passed separately via
+# the extlinux `fdt` directive — arm64 has no appended-DTB support, so the old
+# `cat Image.gz + dtb` just bloated zImage with trailing bytes lk2nd and the
+# kernel both ignore (and masked the empty-dtbs bug above).
 if [ -f "arch/arm64/boot/Image.gz" ]; then
-  cat arch/arm64/boot/Image.gz stage/boot/dtbs/qcom/msm8953-xiaomi-daisy.dtb > stage/boot/zImage
+  cp arch/arm64/boot/Image.gz stage/boot/zImage
 elif [ -f "arch/arm64/boot/Image" ]; then
-  cat arch/arm64/boot/Image stage/boot/dtbs/qcom/msm8953-xiaomi-daisy.dtb > stage/boot/zImage
+  cp arch/arm64/boot/Image stage/boot/zImage
 else
   echo "Error: kernel image not found"
   exit 1
