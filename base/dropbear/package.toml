@@ -1,0 +1,67 @@
+# Dropbear SSH server + client, built static against musl for the PRP recovery
+# overlay. Promoted from PRP's inline build-dropbear.sh so it's built ONCE and
+# cached as a feather (like busybox / peacock-splash), instead of recompiling on
+# every clean overlay build.
+#
+# Why musl + static: a STATIC binary is self-contained (no runtime libc), and
+# musl (unlike static glibc) handles getpwnam / NSS by reading /etc/passwd
+# directly — a static glibc dropbear breaks user lookup. We cross-compile with
+# zig (the c-toolchain capability here only resolves the consuming device arch).
+#
+# Installs: /usr/sbin/{dropbear,dropbearkey}, /usr/bin/{dbclient,scp}, and a
+# /usr/bin/ssh -> dbclient convenience symlink.
+
+[package]
+name = "dropbear"
+version = "2022.83"
+description = "Lightweight SSH server and client (static, musl)"
+
+[install]
+layout = "system"
+
+[build]
+source = "https://matt.ucc.asn.au/dropbear/releases/dropbear-2022.83.tar.bz2"
+checksum = "bc5a121ffbc94b5171ad5ebe01be42746d50aa797c9549a4639894a16749443b"
+use_qemu = false
+build_deps = ["base-devel", "zig"]
+# c-toolchain only resolves the consuming device's $ARCH; the actual compile is
+# zig cc against musl (no hardcoded triple, no glibc cross toolchain).
+capabilities = ["c-toolchain"]
+script = """
+case "${ARCH:-arm64}" in
+  arm64|aarch64)            ZIG_TARGET=aarch64-linux-musl ;;
+  arm|armv7|armv7h|armhf)   ZIG_TARGET=arm-linux-musleabihf ;;
+  x86_64|amd64)             ZIG_TARGET=x86_64-linux-musl ;;
+  *)                        ZIG_TARGET="${ARCH}-linux-musl" ;;
+esac
+
+export HOME=/tmp
+export ZIG_GLOBAL_CACHE_DIR=/tmp/zig-cache ZIG_LOCAL_CACHE_DIR=/tmp/zig-cache
+export CC="zig cc -target ${ZIG_TARGET}"
+export CFLAGS="-O2 -fno-omit-frame-pointer"
+export LDFLAGS="-static"
+
+echo "Building static musl dropbear for ${ZIG_TARGET} (ARCH=${ARCH:-?})..."
+# Disable host-specific session bookkeeping (utmp/wtmp/lastlog/shadow) and zlib
+# so the static musl build is self-contained — matches PRP's recovery profile.
+./configure \
+  --host="${ZIG_TARGET}" \
+  --enable-static \
+  --disable-harden \
+  --disable-zlib \
+  --disable-syslog \
+  --disable-shadow \
+  --disable-lastlog \
+  --disable-utmp \
+  --disable-utmpx \
+  --disable-wtmp \
+  --disable-wtmpx
+
+# scp here is the bundled OpenSSH scp, so host-side `scp root@device:...` works.
+make -j"$(nproc)" PROGRAMS="dropbear dropbearkey dbclient scp"
+
+mkdir -p stage/usr/sbin stage/usr/bin
+install -m 0755 dropbear dropbearkey stage/usr/sbin/
+install -m 0755 dbclient scp stage/usr/bin/
+ln -snf dbclient stage/usr/bin/ssh
+"""
