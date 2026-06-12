@@ -24,7 +24,12 @@ source = "https://github.com/PeacockProject/PRP/archive/refs/heads/master.tar.gz
 checksum = ""
 # zig: PRP cross-compiles its static musl initramfs binaries with `zig cc`
 # (ZIG_TARGET, e.g. aarch64-linux-musl).
-build_deps = ["base-devel", "android-tools", "python", "cpio", "gzip", "coreutils", "sed", "file", "zig", "curl", "e2fsprogs"]
+# NOTE: curl (build-gui/build-dropbear downloads) and e2fsprogs (mkfs.ext4 for
+# the overlay) are intentionally NOT listed: they're already present in the
+# build chroot (pulled by base + kept current by the pre-build -Syyu), and
+# declaring them broke the build-deps install. The overlay build finds them on
+# PATH regardless.
+build_deps = ["base-devel", "android-tools", "python", "cpio", "gzip", "coreutils", "sed", "file", "zig"]
 # Our own packages, ftr-installed into this build chroot before the build:
 # the PRP kernel (-> /boot/zImage) and static busybox (-> /usr/bin/busybox).
 build_dep_packages = ["linux-xiaomi-daisy-prp", "busybox", "peacock-splash"]
