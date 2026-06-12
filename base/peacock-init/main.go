@@ -21,6 +21,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -358,20 +359,133 @@ func enterRecovery(killPID int) {
 	}
 }
 
-// findPRPRootfs locates the PRP recovery partition by its filesystem label,
-// reusing the same label PRP's own init looks for.
+// findPRPRootfs locates the PRP recovery rootfs. PRP_ROOTFS is NOT always a
+// top-level partition with a blkid-visible label: on daisy it lives on the
+// inactive A/B boot slot (boot_b), and a monolithic build can nest it as a
+// subpartition of the recovery partition. So, like PRP's own find_prp_rootfs_dev,
+// we match the ext volume label read straight from each device's superblock —
+// that finds it wherever it sits — and as a fallback expose the recovery
+// partition's subpartitions before re-scanning.
 func findPRPRootfs() string {
-	if out, err := exec.Command("findfs", "LABEL="+prpLabel).Output(); err == nil {
-		if dev := strings.TrimSpace(string(out)); dev != "" {
+	for _, dev := range candidateBlockDevices() {
+		if extLabel(dev) == prpLabel {
 			return dev
 		}
 	}
+	// Secondary signals (some userspaces surface the label via blkid/findfs).
 	if out, err := exec.Command("blkid").Output(); err == nil {
 		for _, line := range strings.Split(string(out), "\n") {
 			if strings.Contains(line, `LABEL="`+prpLabel+`"`) {
 				if i := strings.IndexByte(line, ':'); i > 0 {
 					return strings.TrimSpace(line[:i])
 				}
+			}
+		}
+	}
+	if out, err := exec.Command("findfs", "LABEL="+prpLabel).Output(); err == nil {
+		if dev := strings.TrimSpace(string(out)); dev != "" {
+			return dev
+		}
+	}
+	// Monolithic builds nest PRP_ROOTFS as a subpartition of recovery; expose
+	// it on a partitioned loop, then re-scan superblock labels.
+	return probeRecoverySubpart()
+}
+
+// candidateBlockDevices enumerates block devices PRP_ROOTFS might live on,
+// deduped by their resolved path. Covers eMMC partitions, by-name aliases
+// (incl. the inactive boot slot), SD/NVMe, and exposed loop subpartitions.
+func candidateBlockDevices() []string {
+	var devs []string
+	seen := map[string]bool{}
+	for _, p := range []string{
+		"/dev/mmcblk*p*", "/dev/block/mmcblk*p*",
+		"/dev/block/by-name/*", "/dev/block/bootdevice/by-name/*",
+		"/dev/sd*", "/dev/nvme*p*", "/dev/loop*p*",
+	} {
+		matches, _ := filepath.Glob(p)
+		for _, m := range matches {
+			real := m
+			if r, err := filepath.EvalSymlinks(m); err == nil {
+				real = r
+			}
+			if seen[real] {
+				continue
+			}
+			fi, err := os.Stat(m)
+			if err != nil || fi.Mode()&os.ModeDevice == 0 || fi.Mode()&os.ModeCharDevice != 0 {
+				continue
+			}
+			seen[real] = true
+			devs = append(devs, m)
+		}
+	}
+	return devs
+}
+
+// extLabel returns the ext2/3/4 volume label of dev (read straight from the
+// superblock: magic 0xEF53 at offset 1080, s_volume_name at 1144, 16 bytes),
+// or "" if dev isn't an ext filesystem.
+func extLabel(dev string) string {
+	f, err := os.Open(dev)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	magic := make([]byte, 2)
+	if _, err := f.ReadAt(magic, 1080); err != nil || magic[0] != 0x53 || magic[1] != 0xEF {
+		return ""
+	}
+	buf := make([]byte, 16)
+	if _, err := f.ReadAt(buf, 1144); err != nil {
+		return ""
+	}
+	return string(bytes.TrimRight(buf, "\x00"))
+}
+
+// probeRecoverySubpart handles the monolithic layout where PRP_ROOTFS is nested
+// inside the recovery partition: expose its subpartitions on a partitioned loop
+// device and re-scan superblock labels. Best-effort — needs `losetup -P`.
+func probeRecoverySubpart() string {
+	rec := recoveryDevice()
+	if rec == "" {
+		return ""
+	}
+	out, err := exec.Command("losetup", "-fP", "--show", rec).Output()
+	if err != nil {
+		logf("recovery subpart: cannot expose nested PRP_ROOTFS (losetup -P: %v)", err)
+		return ""
+	}
+	loop := strings.TrimSpace(string(out))
+	subs, _ := filepath.Glob(loop + "p*")
+	for _, s := range subs {
+		if extLabel(s) == prpLabel {
+			return s
+		}
+	}
+	_ = exec.Command("losetup", "-d", loop).Run()
+	return ""
+}
+
+// recoveryDevice finds the recovery partition by its by-name alias or PARTNAME.
+func recoveryDevice() string {
+	for _, p := range []string{
+		"/dev/block/by-name/recovery", "/dev/block/bootdevice/by-name/recovery",
+	} {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	uevents, _ := filepath.Glob("/sys/class/block/*/uevent")
+	for _, ue := range uevents {
+		data, err := os.ReadFile(ue)
+		if err != nil {
+			continue
+		}
+		if strings.Contains(string(data), "PARTNAME=recovery\n") {
+			dev := "/dev/" + filepath.Base(filepath.Dir(ue))
+			if _, err := os.Stat(dev); err == nil {
+				return dev
 			}
 		}
 	}
