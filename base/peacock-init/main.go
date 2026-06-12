@@ -348,15 +348,36 @@ func enterRecovery(killPID int) {
 		}
 	}
 
-	initPath := flavorInitPath(recoveryMount)
-	cmd := exec.Command(initPath)
+	entryPath, entryArgs := recoveryEntry(recoveryMount)
+	logf("recovery entry: %s %s", entryPath, strings.Join(entryArgs, " "))
+	cmd := exec.Command(entryPath, entryArgs...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Chroot: recoveryMount, Setctty: true, Setsid: true}
 	cmd.Dir = "/"
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
-	cmd.Env = []string{"PATH=/usr/sbin:/usr/bin:/sbin:/bin", "TERM=linux", "PEACOCK_RECOVERY=1"}
+	cmd.Env = []string{"PATH=/usr/sbin:/usr/bin:/sbin:/bin", "TERM=linux", "HOME=/root", "PEACOCK_RECOVERY=1"}
 	if err := cmd.Run(); err != nil {
-		logf("recovery init exited: %v", err)
+		logf("recovery entry exited: %v", err)
 	}
+}
+
+// recoveryEntry picks the entry point inside a mounted PRP_ROOTFS. PRP_ROOTFS is
+// an OVERLAY (busybox + tools), not a bootable rootfs, so there's no /sbin/init —
+// we drop into a busybox shell (the toolbox). Important: /bin/sh there is an
+// ABSOLUTE symlink to /sbin/busybox, which can't be stat'd correctly from
+// outside the chroot, so we check the real busybox binary directly and run
+// `busybox sh`.
+func recoveryEntry(root string) (string, []string) {
+	for _, bb := range []string{"/sbin/busybox", "/bin/busybox", "/usr/bin/busybox"} {
+		if isExec(filepath.Join(root, bb)) {
+			return bb, []string{"sh"}
+		}
+	}
+	for _, c := range []string{"/init", "/sbin/init", "/bin/sh", "/bin/bash"} {
+		if isExec(filepath.Join(root, c)) {
+			return c, nil
+		}
+	}
+	return "/bin/sh", nil
 }
 
 // findPRPRootfs locates the PRP recovery rootfs. PRP_ROOTFS is NOT always a
