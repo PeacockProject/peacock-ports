@@ -383,4 +383,12 @@ EOF
   cat arch/arm64/boot/Image.gz "$prp_dtb" > stage-prp/boot/zImage
   cp .config stage-prp/boot/config
 fi
+
+# PASS 2's `make clean` recursively deletes EVERY *.dtb in the tree, including
+# the one PASS 1 staged into stage/boot/dtbs (zImage/config survive — they're
+# not *.dtb). Re-stage the main DTB now: it's hardware-only and identical
+# across the two kernel configs, so the just-rebuilt one is correct. Without
+# this the feather ships an empty dtbs/, extlinux gets no `fdt`, and the device
+# dies at boot with "No DTB configured".
+stage_daisy_dtb
 """
