@@ -6,12 +6,13 @@
 # PRP build consumes via KERNEL_IMAGE. busybox (static) likewise installs
 # to /usr/bin/busybox. Neither ships in the phone's OS rootfs.
 #
-# Final artifact installed at:
-#   /usr/share/peacock/recovery/prp-xiaomi-daisy-recovery.img
+# Final artifacts installed at:
+#   /usr/share/peacock/recovery/prp-xiaomi-daisy-recovery.img  (boot.img)
+#   /usr/share/peacock/recovery/prp-xiaomi-daisy-rootfs.img    (PRP_ROOTFS overlay)
 
 [package]
 name = "prp-xiaomi-daisy"
-version = "0.0.30"
+version = "0.0.31"
 description = "PRP (Peacock Recovery Project) recovery boot.img for Xiaomi Mi A2 Lite (daisy / MSM8953)"
 
 # Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
@@ -23,7 +24,7 @@ source = "https://github.com/PeacockProject/PRP/archive/refs/heads/master.tar.gz
 checksum = ""
 # zig: PRP cross-compiles its static musl initramfs binaries with `zig cc`
 # (ZIG_TARGET, e.g. aarch64-linux-musl).
-build_deps = ["base-devel", "android-tools", "python", "cpio", "gzip", "coreutils", "sed", "file", "zig"]
+build_deps = ["base-devel", "android-tools", "python", "cpio", "gzip", "coreutils", "sed", "file", "zig", "curl", "e2fsprogs"]
 # Our own packages, ftr-installed into this build chroot before the build:
 # the PRP kernel (-> /boot/zImage) and static busybox (-> /usr/bin/busybox).
 build_dep_packages = ["linux-xiaomi-daisy-prp", "busybox", "peacock-splash"]
@@ -55,6 +56,19 @@ if [ ! -f "$BOOTIMG" ]; then
   exit 1
 fi
 
+# PRP_ROOTFS overlay partition (flashed to boot_b). This is the recovery rootfs
+# the PeacockOS base (peacock-init) mounts to run the recovery session in place
+# on a flavor-boot failure: it carries prp-gui + /usr/bin/prp-recovery-enter.
+# daisy is non-monolithic (the full overlay won't fit lk2nd's 16 MiB ramdisk),
+# so the overlay ships as a SEPARATE image alongside the boot.img.
+make overlay TARGET=xiaomi-daisy OUT_DIR="$OUT_DIR"
+OVERLAY_IMG="$OUT_DIR/prp-rootfs.img"
+if [ ! -f "$OVERLAY_IMG" ]; then
+  echo "Error: expected PRP overlay image not found at $OVERLAY_IMG"
+  exit 1
+fi
+
 mkdir -p stage/usr/share/peacock/recovery
 install -m 0644 "$BOOTIMG" stage/usr/share/peacock/recovery/prp-xiaomi-daisy-recovery.img
+install -m 0644 "$OVERLAY_IMG" stage/usr/share/peacock/recovery/prp-xiaomi-daisy-rootfs.img
 """
