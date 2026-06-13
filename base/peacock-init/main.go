@@ -319,9 +319,14 @@ func enterRecovery(killPID int) {
 		haltLoud("recovery setup failed")
 		return
 	}
+	// Mount READ-WRITE: PRP's recovery init writes a runtime into the rootfs
+	// (/etc/passwd via ensure_minimal_users, /tmp, /run) and we must be able to
+	// create the /dev /proc /sys /run mountpoints below (the overlay doesn't ship
+	// them). A read-only mount fails both ("Read-only file system" + the binds
+	// have no mountpoint -> "/dev/kmsg: nonexistent directory").
 	mounted := false
 	for _, fs := range []string{"ext4", "ext3", "ext2"} {
-		if err := syscall.Mount(dev, recoveryMount, fs, syscall.MS_RDONLY, ""); err == nil {
+		if err := syscall.Mount(dev, recoveryMount, fs, 0, ""); err == nil {
 			mounted = true
 			break
 		}
