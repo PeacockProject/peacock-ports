@@ -35,9 +35,11 @@ echo "Building static Busybox (CROSS_COMPILE=${CROSS_COMPILE:-native})..."
 # empty stub on the link path so the probe succeeds and crypt is excluded
 # (harmless where a real libcrypt.a exists — bb-crypt never references it).
 STUBLIB="$(pwd)/.peacock-stublib"; mkdir -p "$STUBLIB"; ar crs "$STUBLIB/libcrypt.a"
-MAKE_ARGS="LDFLAGS=--static -L$STUBLIB"
-[ -n "${CROSS_COMPILE:-}" ] && MAKE_ARGS="$MAKE_ARGS CROSS_COMPILE=${CROSS_COMPILE}"
-make $MAKE_ARGS -j"$(nproc)" busybox
+# LDFLAGS must be ONE arg (the -L has a space before it) or make eats "-L..."
+# as its own flag. CROSS_COMPILE (no spaces) can expand unquoted.
+CC_ARG=""
+[ -n "${CROSS_COMPILE:-}" ] && CC_ARG="CROSS_COMPILE=${CROSS_COMPILE}"
+make LDFLAGS="--static -L$STUBLIB" $CC_ARG -j"$(nproc)" busybox
 
 echo "Staging busybox -> /usr/bin/busybox ..."
 mkdir -p stage/usr/bin
