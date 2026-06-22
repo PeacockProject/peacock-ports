@@ -9,78 +9,18 @@ layout = "system"
 [build]
 # Self-contained MTK vendor kernel: the oppo/mediatek drivers are already
 # vendored in-tree (drivers/{misc,gpu}/mediatek, drivers/soc/oppo, Oplus build
-# scaffolding), so this builds from the one repo — no separate modules merge.
-# Pinned to an immutable commit archive (branch oppo/mt6765_r_11.1.4_a16 @ HEAD).
+# scaffolding), so this builds from the one repo. Pinned to an immutable commit
+# archive (branch oppo/mt6765_r_11.1.4_a16 @ HEAD).
 source = "https://github.com/PeacockProject/android_kernel_oppo_mt6765/archive/ca76529668254bafcbdf96675ea7994ba7eb3903.tar.gz"
 checksum = "e8e1c446943957a58164afd759b587cc432243968316a0d6a4f39a9f84bc621d"
+type = "raw"
 build_deps = ["base-devel", "bc", "dtc", "kmod", "cpio", "python", "perl", "openssl"]
 use_qemu = false
 target_arch = "aarch64"
 capabilities = ["c-toolchain"]
-
-# NOTE — UNVERIFIED BUILD. This is an MTK 4.19 vendor kernel, far fussier than a
-# mainline tree. First build will likely need iteration:
-#   * defconfig: defaults to oppo6765_defconfig; override with $OPPO_A16_DEFCONFIG
-#     (tree also ships oppo6765_20375_defconfig / oppo6765_21281_defconfig).
-#   * toolchain: a build.config.mtk.aarch64.gcc exists, so cross-GCC *should*
-#     work via the c-toolchain capability; if it demands clang, switch there.
-#   * -Werror: MTK trees often -Werror against modern GCC — relaxed below, may
-#     need more (KCFLAGS += -Wno-error=...).
-script = """
-ARCH_DEF="${ARCH:-arm64}"
-MAKE_ARGS="ARCH=$ARCH_DEF"
-if [ -n "${CROSS_COMPILE:-}" ]; then
-  MAKE_ARGS="$MAKE_ARGS CROSS_COMPILE=${CROSS_COMPILE}"
-fi
-JOBS="${PEACOCK_JOBS:-4}"
-if [ -z "$JOBS" ] || [ "$JOBS" -lt 1 ] 2>/dev/null; then JOBS=1; fi
-
-DEFCONFIG="${OPPO_A16_DEFCONFIG:-oppo6765_defconfig}"
-DTB_REL="mediatek/oppo6765_20379"
-
-echo "=== oppo-a16 kernel: defconfig=$DEFCONFIG (4.19 MTK vendor) ==="
-make $MAKE_ARGS "$DEFCONFIG"
-
-# Re-derive compiler-capability symbols for the toolchain building *here*.
-sed -i \
-  -e '/^CONFIG_CC_VERSION_TEXT=/d' \
-  -e '/^CONFIG_CC_IS_/d' \
-  -e '/^CONFIG_GCC_VERSION=/d' \
-  -e '/^CONFIG_CLANG_VERSION=/d' \
-  -e '/^CONFIG_LD_IS_/d' \
-  -e '/^CONFIG_LD_VERSION=/d' \
-  -e '/^CONFIG_LLD_VERSION=/d' \
-  -e '/^CONFIG_CC_HAS_/d' \
-  -e '/^CONFIG_CC_CAN_/d' \
-  .config 2>/dev/null || true
-
-# Vendor kernels frequently -Werror against newer compilers; relax where we can.
-if [ -x ./scripts/config ]; then
-  ./scripts/config --disable WERROR 2>/dev/null || true
-fi
-yes "" | make $MAKE_ARGS olddefconfig
-
-echo "Building Image.gz + ${DTB_REL}.dtb ..."
-make $MAKE_ARGS -j"$JOBS" Image.gz "${DTB_REL}.dtb"
-
-mkdir -p stage/boot/dtbs/mediatek
-if [ -f arch/arm64/boot/Image.gz ]; then
-  cp arch/arm64/boot/Image.gz stage/boot/zImage
-elif [ -f arch/arm64/boot/Image ]; then
-  cp arch/arm64/boot/Image stage/boot/zImage
-else
-  echo "Error: kernel image not found"; exit 1
-fi
-
-DTB_OUT="arch/arm64/boot/dts/${DTB_REL}.dtb"
-[ -s "$DTB_OUT" ] || { echo "Error: DTB not built: $DTB_OUT"; exit 1; }
-cp "$DTB_OUT" stage/boot/dtbs/mediatek/oppo6765_20379.dtb
-cp .config stage/boot/config
-
-# Build + stage modules if the config keeps any modular.
-if grep -q "^CONFIG_MODULES=y" .config 2>/dev/null; then
-  make $MAKE_ARGS -j"$JOBS" modules || true
-  make $MAKE_ARGS modules_install INSTALL_MOD_PATH="$(pwd)/stage/usr" || true
-fi
-echo "Staged: $(ls -la stage/boot/zImage) + dtb"
-"""
+# Build logic lives in ./build.sh (build()/package()), not inline here.
+#
+# NOTE — UNVERIFIED. MTK 4.19 vendor kernel; the first real compile will likely
+# need iteration (see ./build.sh for the defconfig / -Werror / GCC-vs-clang
+# knobs). Defconfig defaults to oppo6765_defconfig; override with
+# $OPPO_A16_DEFCONFIG.
