@@ -24,6 +24,7 @@ layout = "system"
 [build]
 source = "https://github.com/PeacockProject/lk2nd_peacock/archive/refs/heads/master.tar.gz"
 checksum = ""
+type = "bootloader"
 build_deps = [
   "base-devel",
   "dtc",
@@ -36,29 +37,5 @@ use_qemu = false
 target_arch = "armv7h"
 triple = "arm-none-eabi"
 capabilities = ["c-toolchain"]
-script = """
-tarball="$(ls -1 master.tar.gz lk2nd_peacock-*.tar.gz 2>/dev/null | head -n1)"
-if [ -n "$tarball" ]; then
-  tar -xzf "$tarball" --strip-components=1
-fi
-
-if [ ! -f makefile ] || [ ! -f project/lk2nd-msm8960.mk ]; then
-  echo "Error: lk2nd sources not found after extraction"
-  exit 1
-fi
-
-# `lk2nd-msm8960` is the SoC-wide build target; jflte is auto-detected
-# at runtime via DT probing (samsung,jflte / qcom,msm8960 in the
-# msm8960 bundle.dts). Toolchain prefix follows the upstream
-# building.md guidance (arm-none-eabi-).
-make -j$(nproc) TOOLCHAIN_PREFIX=arm-none-eabi- lk2nd-msm8960
-
-LK2ND_IMG="build-lk2nd-msm8960/lk2nd.img"
-if [ ! -f "$LK2ND_IMG" ]; then
-  echo "Error: expected lk2nd image not found at $LK2ND_IMG"
-  exit 1
-fi
-
-mkdir -p stage/usr/share/peacock/bootloaders
-install -m 0644 "$LK2ND_IMG" stage/usr/share/peacock/bootloaders/lk2nd-samsung-jflte.img
-"""
+# Build via the bootloader type (lib/build/bootloader.sh); ./build.sh sets the
+# make target + output image.
