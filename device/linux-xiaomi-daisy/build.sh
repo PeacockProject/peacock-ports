@@ -1,0 +1,374 @@
+# shellcheck shell=sh
+# linux-xiaomi-daisy — mainline msm8953 kernel + a PRP-trimmed recovery kernel
+# from one source tree. Verbatim move of the former inline build: stage/ ->
+# $pkgdir (OS kernel package); stage-prp/ kept as-is (the harness packages it
+# as the linux-xiaomi-daisy-prp subpackage). prepare() extracts the source.
+# UNVERIFIED — lead device + dual kernel; run a real build before trusting.
+
+build() {
+ARCH_DEF="${ARCH:-arm64}"
+MAKE_ARGS="ARCH=$ARCH_DEF"
+if [ -n "${CROSS_COMPILE:-}" ]; then
+  MAKE_ARGS="$MAKE_ARGS CROSS_COMPILE=${CROSS_COMPILE}"
+fi
+JOBS="${PEACOCK_JOBS:-4}"
+if [ -z "$JOBS" ] || [ "$JOBS" -lt 1 ]; then
+  JOBS=1
+fi
+
+# Strip compiler-capability symbols an imported config bakes in; they must
+# be re-derived for the toolchain actually building here.
+sanitize_config() {
+  sed -i \
+    -e '/^CONFIG_CC_VERSION_TEXT=/d' \
+    -e '/^CONFIG_CC_IS_/d' \
+    -e '/^CONFIG_GCC_VERSION=/d' \
+    -e '/^CONFIG_CLANG_VERSION=/d' \
+    -e '/^CONFIG_AS_IS_/d' \
+    -e '/^CONFIG_AS_VERSION=/d' \
+    -e '/^CONFIG_LD_IS_/d' \
+    -e '/^CONFIG_LD_VERSION=/d' \
+    -e '/^CONFIG_LLD_VERSION=/d' \
+    -e '/^CONFIG_CC_HAS_/d' \
+    -e '/^CONFIG_CC_CAN_/d' \
+    -e '/^CONFIG_TOOLS_SUPPORT_RELR=/d' \
+    .config
+}
+
+# Daisy panel/touch DTS fixups. Idempotent (guarded greps / status flips),
+# so applying once per pass on the shared tree is safe.
+apply_daisy_dts() {
+  for dts in \
+    arch/arm64/boot/dts/qcom/msm8953-xiaomi-daisy.dts \
+    arch/arm64/boot/dts/qcom/msm8953-xiaomi-daisy-r5.dts; do
+    [ -f "$dts" ] || continue
+    if grep -q 'compatible = "xiaomi,daisy-panel";' "$dts" 2>/dev/null; then
+      sed -i \
+        's/compatible = "xiaomi,daisy-panel";/compatible = "mdss,ili7807-fhdplus", "xiaomi,daisy-panel";/' \
+        "$dts"
+    fi
+    sed -i '/&gt917d_ts {/,/};/ s/status = "disabled";/status = "okay";/' "$dts"
+    sed -i '/&ft5406_ts {/,/};/ s/status = "disabled";/status = "okay";/' "$dts"
+  done
+}
+
+# Sets DTB_TARGET / DTB_MAKE_TARGET for the daisy board.
+detect_dtb() {
+  DTB_TARGET=""
+  DTB_MAKE_TARGET=""
+  if [ -f "arch/arm64/boot/dts/qcom/msm8953-xiaomi-daisy.dts" ]; then
+    DTB_TARGET="arch/arm64/boot/dts/qcom/msm8953-xiaomi-daisy.dtb"
+    DTB_MAKE_TARGET="qcom/msm8953-xiaomi-daisy.dtb"
+  elif [ -f "arch/arm64/boot/dts/qcom/msm8953-xiaomi-daisy-r5.dts" ]; then
+    DTB_TARGET="arch/arm64/boot/dts/qcom/msm8953-xiaomi-daisy-r5.dtb"
+    DTB_MAKE_TARGET="qcom/msm8953-xiaomi-daisy-r5.dtb"
+  fi
+}
+
+# Stage the daisy DTB into $pkgdir/boot/dtbs/qcom (canonical name). Bulletproof:
+# build the DTB if it's missing, accept either the standard or -r5 source, and
+# FAIL LOUDLY if the staged file is empty. A silently-empty dtbs/ previously
+# shipped a DTB-less kernel feather and bricked the boot ("No DTB configured").
+stage_daisy_dtb() {
+  mkdir -p $pkgdir/boot/dtbs/qcom
+  # Ensure the DTB is actually built (an earlier make target may have skipped it).
+  if [ -n "${DTB_MAKE_TARGET:-}" ] && [ ! -f "${DTB_TARGET:-/nonexistent}" ]; then
+    make ${MAKE_ARGS:-} "$DTB_MAKE_TARGET" || true
+  fi
+  src=""
+  for c in \
+    "${DTB_TARGET:-}" \
+    arch/arm64/boot/dts/qcom/msm8953-xiaomi-daisy.dtb \
+    arch/arm64/boot/dts/qcom/msm8953-xiaomi-daisy-r5.dtb; do
+    if [ -n "$c" ] && [ -f "$c" ]; then src="$c"; break; fi
+  done
+  [ -n "$src" ] || { echo "Error: daisy DTB not found after build"; exit 1; }
+  cp "$src" $pkgdir/boot/dtbs/qcom/msm8953-xiaomi-daisy.dtb
+  [ -s $pkgdir/boot/dtbs/qcom/msm8953-xiaomi-daisy.dtb ] || { echo "Error: staged daisy DTB is empty"; exit 1; }
+  echo "Staged daisy DTB: $src ($(wc -c < "$src") bytes)"
+}
+
+##############################################################################
+# PASS 1 — full kernel ($KERNEL_CONFIG) -> zImage (+ modules)
+##############################################################################
+echo "=== PASS 1: full daisy kernel (${KERNEL_CONFIG:-config}) ==="
+cp "${KERNEL_CONFIG:-config}" .config
+sanitize_config
+echo "Refreshing config..."
+yes "" | make $MAKE_ARGS olddefconfig
+
+echo "Disabling pointer-auth flags that break with current GCC..."
+if [ -x ./scripts/config ]; then
+  ./scripts/config --disable ARM64_PTR_AUTH || true
+  ./scripts/config --disable ARM64_PTR_AUTH_KERNEL || true
+  ./scripts/config --disable BUILTIN_RETURN_ADDRESS_STRIPS_PAC || true
+  ./scripts/config --disable CC_HAS_BRANCH_PROT_PAC_RET || true
+  ./scripts/config --disable CC_HAS_BRANCH_PROT_PAC_RET_BTI || true
+fi
+yes "" | make $MAKE_ARGS olddefconfig
+
+echo "Applying daisy critical built-ins for early panel/touch bring-up..."
+if [ -x ./scripts/config ]; then
+  for sym in \
+    INPUT_EVDEV \
+    INPUT_PM8941_PWRKEY \
+    POWER_RESET_QCOM_PON \
+    DRM \
+    DRM_MSM \
+    DRM_MSM_MDSS \
+    DRM_MSM_MDP5 \
+    DRM_MSM_DSI \
+    DRM_MSM_DSI_14NM_PHY \
+    DRM_PANEL \
+    DRM_PANEL_MSM8953_GENERATED \
+    DRM_PANEL_MDSS_ILI7807_FHDPLUS \
+    TOUCHSCREEN_GOODIX \
+    TOUCHSCREEN_EDT_FT5X06 \
+    TOUCHSCREEN_FT6236
+  do
+    ./scripts/config --enable "$sym" || true
+  done
+
+  for sym in \
+    DRM_PANEL_MDSS_OTM1911_FHD \
+    DRM_PANEL_MDSS_OTM1911_FHDPLUS \
+    DRM_PANEL_XIAOMI_OTM1911
+  do
+    ./scripts/config --disable "$sym" || true
+  done
+fi
+
+apply_daisy_dts
+yes "" | make $MAKE_ARGS olddefconfig
+
+detect_dtb
+echo "Compiling kernel Image.gz + target DTB..."
+if [ -n "$DTB_MAKE_TARGET" ]; then
+  make $MAKE_ARGS -j"$JOBS" Image.gz "$DTB_MAKE_TARGET"
+else
+  # Fallback keeps build functional if upstream renames dtb targets.
+  make $MAKE_ARGS -j"$JOBS" Image.gz dtbs
+fi
+
+# Full-kernel package tree (installed into the OS rootfs by ftr):
+#   $pkgdir/boot/zImage            kernel image (Image.gz + dtb)
+#   $pkgdir/boot/dtbs/qcom/...      device tree
+#   $pkgdir/usr/lib/modules/...     modules
+echo "Compiling modules..."
+rm -rf "$pkgdir" stage-prp
+mkdir -p $pkgdir/boot
+if grep -q "^CONFIG_MODULES=y" .config 2>/dev/null; then
+  make $MAKE_ARGS -j"$JOBS" modules
+  make $MAKE_ARGS modules_install INSTALL_MOD_PATH="$pkgdir/usr"
+fi
+
+stage_daisy_dtb
+# zImage is the gzip-compressed kernel ALONE. The DTB is passed separately via
+# the extlinux `fdt` directive — arm64 has no appended-DTB support, so the old
+# `cat Image.gz + dtb` just bloated zImage with trailing bytes lk2nd and the
+# kernel both ignore (and masked the empty-dtbs bug above).
+if [ -f "arch/arm64/boot/Image.gz" ]; then
+  cp arch/arm64/boot/Image.gz $pkgdir/boot/zImage
+elif [ -f "arch/arm64/boot/Image" ]; then
+  cp arch/arm64/boot/Image $pkgdir/boot/zImage
+else
+  echo "Error: kernel image not found"
+  exit 1
+fi
+# Ship the resolved kernel config (PRP's check-kernel-config.sh reads it).
+cp .config $pkgdir/boot/config
+
+##############################################################################
+# PASS 2 — PRP-trimmed kernel ($PRP_KERNEL_CONFIG) -> zImage-prp
+# Recovery-focused: no modules, trimmed stacks, single daisy panel built-in.
+# Skipped when prp_kernel_config is unset.
+##############################################################################
+if [ -n "${PRP_KERNEL_CONFIG:-}" ] && [ -f "${PRP_KERNEL_CONFIG}" ]; then
+  echo "=== PASS 2: PRP daisy kernel (${PRP_KERNEL_CONFIG}) ==="
+  # Clean the tree so the very different config doesn't reuse pass-1 objects.
+  # Keeps source (incl. the DTS fixups above) and our $pkgdir/ dir.
+  make $MAKE_ARGS clean || true
+
+  cp "${PRP_KERNEL_CONFIG}" .config
+  sanitize_config
+  echo "Refreshing config..."
+  yes "" | make $MAKE_ARGS olddefconfig
+
+  echo "Applying PRP kernel trim (recovery-focused built-ins only)..."
+  PRP_TMP="${PRP_TMP:-$(mktemp -d -t prp-build-XXXXXX)}"
+  trap 'rm -rf "$PRP_TMP"' EXIT
+  if [ -x ./scripts/config ]; then
+    # Eliminate module builds entirely for PRP speed + deterministic bring-up.
+    ./scripts/config --disable MODULES || true
+
+    # Symbols modular in the PRP base config flip to =y under MODULES=n
+    # unless forced back off explicitly.
+    awk -F= '/^CONFIG_[A-Z0-9_]+=m$/{sub(/^CONFIG_/, "", $1); print $1}' "${PRP_KERNEL_CONFIG}" >"$PRP_TMP"/modules.list
+    while IFS= read -r sym; do
+      [ -n "$sym" ] || continue
+      ./scripts/config --disable "$sym" || true
+    done <"$PRP_TMP"/modules.list
+
+    # Trim heavy non-recovery stacks that materially increase build time.
+    cat >"$PRP_TMP"/trim-force-n.list <<'EOF'
+MEDIA_SUPPORT
+SOUND
+XFS_FS
+BTRFS_FS
+NFS_FS
+NFSD
+NFS_V4
+NFS_V3
+NFS_V2
+CIFS
+SMB_SERVER
+9P_FS
+AF_RXRPC
+RDS
+TIPC
+CAIF
+NFC
+BT
+IP_DCCP
+IP_SCTP
+WIRELESS
+WLAN
+CFG80211
+MAC80211
+RFKILL
+USB_STORAGE
+USB_UAS
+USB_HID
+USB_NET_DRIVERS
+HID_PICOLCD
+HID_STEAM
+HID_NINTENDO
+HID_PLAYSTATION
+HID_XBOX
+HID_XIAOMI
+EOF
+    while IFS= read -r sym; do
+      [ -n "$sym" ] || continue
+      ./scripts/config --disable "$sym" || true
+    done < "$PRP_TMP"/trim-force-n.list
+
+    # Force minimal symbols required by PRP on daisy.
+    cat >"$PRP_TMP"/trim-force-y.list <<'EOF'
+DEVTMPFS
+DEVTMPFS_MOUNT
+EXT4_FS
+MMC
+MMC_BLOCK
+INPUT
+INPUT_EVDEV
+TOUCHSCREEN_GOODIX
+TOUCHSCREEN_EDT_FT5X06
+TOUCHSCREEN_FT6236
+EOF
+    while IFS= read -r sym; do
+      [ -n "$sym" ] || continue
+      ./scripts/config --enable "$sym" || true
+    done < "$PRP_TMP"/trim-force-y.list
+  fi
+
+  echo "Applying PRP display policy (single daisy panel)..."
+  # PRP should not rely on initramfs module loading. Keep only the daisy panel
+  # reported by lk2nd/fastboot OEM data as built-in.
+  cat >"$PRP_TMP"/display-force-y.list <<'EOF'
+CONFIG_DRM
+CONFIG_DRM_MSM
+CONFIG_DRM_MSM_MDSS
+CONFIG_DRM_MSM_MDP5
+CONFIG_DRM_MSM_DSI
+CONFIG_DRM_MSM_DSI_14NM_PHY
+CONFIG_DRM_PANEL
+CONFIG_DRM_PANEL_MSM8953_GENERATED
+CONFIG_DRM_PANEL_MDSS_ILI7807_FHDPLUS
+CONFIG_BACKLIGHT_CLASS_DEVICE
+CONFIG_LCD_CLASS_DEVICE
+CONFIG_EXTCON
+EOF
+  while IFS= read -r key; do
+    [ -n "$key" ] || continue
+    sed -i \
+      -e "/^${key}=.*/d" \
+      -e "/^# ${key} is not set$/d" \
+      .config
+    printf '%s=y\n' "$key" >> .config
+  done < "$PRP_TMP"/display-force-y.list
+
+  cat >"$PRP_TMP"/display-force-n.list <<'EOF'
+CONFIG_DRM_PANEL_MDSS_ILI7807_FHD
+CONFIG_DRM_PANEL_MDSS_OTM1911_FHD
+CONFIG_DRM_PANEL_MDSS_OTM1911_FHDPLUS
+CONFIG_DRM_PANEL_MDSS_OTM1911
+CONFIG_DRM_PANEL_XIAOMI_OTM1911
+CONFIG_DRM_PANEL_HIMAX_HX8399C_FHDPLUS
+CONFIG_DRM_PANEL_TENOR_HX8399C_AUO
+CONFIG_DRM_PANEL_XIAOMI_YSL_HX8394F
+EOF
+  while IFS= read -r key; do
+    [ -n "$key" ] || continue
+    sed -i \
+      -e "/^${key}=.*/d" \
+      -e "/^# ${key} is not set$/d" \
+      .config
+    printf '# %s is not set\n' "$key" >> .config
+  done < "$PRP_TMP"/display-force-n.list
+
+  apply_daisy_dts
+  yes "" | make $MAKE_ARGS olddefconfig
+
+  # Re-assert touchscreen drivers as built-ins after all defconfig passes.
+  if [ -x ./scripts/config ]; then
+    ./scripts/config --enable TOUCHSCREEN_GOODIX || true
+    ./scripts/config --enable TOUCHSCREEN_EDT_FT5X06 || true
+    ./scripts/config --enable TOUCHSCREEN_FT6236 || true
+    yes "" | make $MAKE_ARGS olddefconfig
+  fi
+
+  if grep -q '^CONFIG_MODULES=y' .config 2>/dev/null; then
+    echo "Error: CONFIG_MODULES is still enabled after PRP trim"
+    exit 1
+  fi
+
+  if grep -E '^CONFIG_DRM_PANEL_.*OTM1911.*=y$' .config >"$PRP_TMP"/display-otm1911-clash.list 2>/dev/null; then
+    echo "Error: conflicting OTM1911 panel symbols still enabled:"
+    cat "$PRP_TMP"/display-otm1911-clash.list
+    exit 1
+  fi
+
+  detect_dtb
+  if [ -z "$DTB_MAKE_TARGET" ]; then
+    echo "Error: daisy DTB source not found"
+    exit 1
+  fi
+  echo "Compiling PRP kernel Image.gz + daisy DTB only..."
+  make $MAKE_ARGS -j"$JOBS" Image.gz "$DTB_MAKE_TARGET"
+
+  # PRP-kernel package tree (stage-prp/) — packaged separately as
+  # linux-xiaomi-daisy-prp, a build dependency of PRP images only, never
+  # shipped in the OS rootfs. It IS the kernel within that package, so it
+  # is just boot/zImage (Image.gz + dtb concatenated).
+  prp_dtb=""
+  for d in \
+    arch/arm64/boot/dts/qcom/msm8953-xiaomi-daisy.dtb \
+    arch/arm64/boot/dts/qcom/msm8953-xiaomi-daisy-r5.dtb; do
+    [ -f "$d" ] && prp_dtb="$d" && break
+  done
+  [ -n "$prp_dtb" ] || { echo "Error: PRP daisy DTB not found after build"; exit 1; }
+  mkdir -p stage-prp/boot
+  cat arch/arm64/boot/Image.gz "$prp_dtb" > stage-prp/boot/zImage
+  cp .config stage-prp/boot/config
+fi
+
+# PASS 2's `make clean` recursively deletes EVERY *.dtb in the tree, including
+# the one PASS 1 staged into $pkgdir/boot/dtbs (zImage/config survive — they're
+# not *.dtb). Re-stage the main DTB now: it's hardware-only and identical
+# across the two kernel configs, so the just-rebuilt one is correct. Without
+# this the feather ships an empty dtbs/, extlinux gets no `fdt`, and the device
+# dies at boot with "No DTB configured".
+stage_daisy_dtb
+}
+
+package() { :; }
