@@ -10,15 +10,5 @@ layout = "system"
 [build]
 source = "https://ftp.gnu.org/gnu/ncurses/ncurses-6.5.tar.gz"
 checksum = ""
-script = """
-tarball="$(ls -1 ncurses-*.tar.gz 2>/dev/null | head -n1)"
-if [ -n "$tarball" ]; then
-  tar -xzf "$tarball" --strip-components=1
-fi
-./configure --prefix="$(pwd)/stage" --with-shared --with-termlib --enable-widec --without-cxx --without-cxx-binding
-make -j$(nproc)
-make install
-cp -a stage/bin ./
-cp -a stage/lib ./
-cp -a stage/include ./
-"""
+type = "autotools"
+configure_args = "--with-shared --with-termlib --enable-widec --without-cxx --without-cxx-binding"
