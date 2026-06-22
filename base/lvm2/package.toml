@@ -17,23 +17,7 @@ build_deps = ["base-devel", "bash", "util-linux"]
 # -lblkid") and never caches — rebuilding every run. ftr-installed at the build
 # arch (-> /lib), where the static linker finds them.
 build_dep_packages = ["util-linux"]
-script = """
-tarball="$(ls -1 LVM2.*.tgz 2>/dev/null | head -n1)"
-if [ -n "$tarball" ]; then
-  tar -xzf "$tarball" --strip-components=1
-fi
-./configure \
-  --prefix="$(pwd)/stage" \
-  --sbindir="$(pwd)/stage/sbin" \
-  --enable-static_link \
-  --disable-selinux \
-  --disable-udev_sync \
-  --disable-systemd-journal \
-  --without-systemd \
-  --without-systemdsystemunitdir \
-  --enable-applib \
-  --enable-cmdlib
-make -j"$(nproc)" device-mapper
-make -j"$(nproc)" install_device-mapper
-cp -a stage/sbin stage/lib stage/include ./ 2>/dev/null || true
-"""
+type = "raw"
+# Non-standard make targets (device-mapper / install_device-mapper) the
+# autotools type can't express, so this is a raw port. ./build.sh moves the
+# legacy logic verbatim with the stage prefix repointed to $pkgdir.

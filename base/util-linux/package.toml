@@ -10,24 +10,8 @@ layout = "system"
 [build]
 source = "https://www.kernel.org/pub/linux/utils/util-linux/v2.41/util-linux-2.41.tar.gz"
 checksum = ""
+type = "autotools"
 build_deps = ["base-devel", "bash", "ncurses"]
-script = """
-tarball="$(ls -1 util-linux-*.tar.gz 2>/dev/null | head -n1)"
-if [ -n "$tarball" ]; then
-  tar -xzf "$tarball" --strip-components=1
-fi
-./configure \
-  --prefix="$(pwd)/stage" \
-  --disable-makeinstall-chown \
-  --disable-makeinstall-setuid \
-  --without-systemd \
-  --without-systemdsystemunitdir \
-  --without-python \
-  --disable-bash-completion \
-  --disable-rpath \
-  --disable-lsfd \
-  --enable-static-programs=losetup,blkid,partx,lsblk
-make -j"$(nproc)"
-make install
-cp -a stage/bin stage/sbin stage/lib stage/include ./ 2>/dev/null || true
-"""
+# Standard autotools; legacy --prefix=$(pwd)/stage + cp staging is normalized to
+# /usr via DESTDIR=$pkgdir. Remaining flags are real configure args.
+configure_args = "--disable-makeinstall-chown --disable-makeinstall-setuid --without-systemd --without-systemdsystemunitdir --without-python --disable-bash-completion --disable-rpath --disable-lsfd --enable-static-programs=losetup,blkid,partx,lsblk"

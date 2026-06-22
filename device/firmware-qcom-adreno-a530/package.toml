@@ -10,11 +10,7 @@ layout = "system"
 [build]
 source = "https://gitlab.com/kernel-firmware/linux-firmware/-/archive/20241110/linux-firmware-20241110.tar.gz"
 checksum = ""
+type = "raw"
 build_deps = ["coreutils", "tar"]
-script = """
-set -e
-
-mkdir -p stage/lib/firmware/qcom
-install -m 0644 qcom/a530_pm4.fw stage/lib/firmware/qcom/
-install -m 0644 qcom/a530_pfp.fw stage/lib/firmware/qcom/
-"""
+# prepare() (default) extracts the linux-firmware tarball (strip 1); package()
+# stages the two Adreno A530 blobs into $pkgdir.

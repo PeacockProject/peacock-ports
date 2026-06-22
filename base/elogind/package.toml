@@ -21,38 +21,4 @@ build_deps = [
     "gperf",
     "diffutils"
 ]
-script = """
-set -e
-
-JOBS="${PEACOCK_JOBS:-}"
-if [ -z "$JOBS" ]; then
-    if command -v nproc >/dev/null 2>&1; then
-        JOBS="$(nproc)"
-    else
-        JOBS=1
-    fi
-fi
-
-meson setup build \
-    --prefix=/usr \
-    --libexecdir=/usr/lib/elogind \
-    -Dmode=release \
-    -Ddefault-hierarchy=unified \
-    -Dcgroup-controller=openrc \
-    -Ddefault-kill-user-processes=false \
-    -Dinstall-sysconfdir=true \
-    -Dutmp=true \
-    -Dsmack=false \
-    -Dselinux=disabled \
-    -Dxenctrl=disabled \
-    -Daudit=disabled \
-    -Dpolkit=disabled \
-    -Dman=disabled \
-    -Dhalt-path=/usr/bin/halt \
-    -Dpoweroff-path=/usr/bin/poweroff \
-    -Dreboot-path=/usr/bin/reboot \
-    -Dkexec-path=/usr/bin/kexec
-
-meson compile -C build -j "$JOBS"
-DESTDIR="$PWD/stage" meson install -C build
-"""
+type = "raw"

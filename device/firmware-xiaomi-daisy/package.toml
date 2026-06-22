@@ -10,9 +10,7 @@ layout = "system"
 [build]
 source = "https://github.com/alikates/firmware-xiaomi-daisy/archive/9ae200b57743088f83a6f2b02a6b7ce4596a77d6.tar.gz"
 checksum = "05b8e1e198512f8768d4f024525daa01bdbe7fc3dcf265f612e95f160e19c334"
+type = "raw"
 build_deps = ["coreutils"]
-script = """
-mkdir -p stage/lib/firmware/qcom/msm8953/xiaomi/daisy
-install -m 0644 gpu/a506_zap.b02 stage/lib/firmware/qcom/msm8953/xiaomi/daisy/
-install -m 0644 gpu/a506_zap.mdt stage/lib/firmware/qcom/msm8953/xiaomi/daisy/
-"""
+# prepare() (default) extracts the firmware tarball (strip 1); package() stages
+# the daisy GPU zap blobs into $pkgdir.

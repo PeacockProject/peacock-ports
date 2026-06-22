@@ -16,24 +16,6 @@ build_deps = ["base-devel", "go"]
 # capability is only here to resolve the device arch ($ARCH) and satisfy the
 # cross-build guard. The Go source is vendored as aux files (main.go, go.mod).
 capabilities = ["c-toolchain"]
-script = """
-mkdir -p stage/sbin
-
-# Map the kernel-style $ARCH the build injects to GOARCH.
-case "${ARCH:-arm64}" in
-  arm64)  GOARCH=arm64 ;;
-  arm)    GOARCH=arm; export GOARM=7 ;;
-  x86_64) GOARCH=amd64 ;;
-  *)      GOARCH="${ARCH}" ;;
-esac
-export GOARCH GOOS=linux CGO_ENABLED=0
-# Offline + self-contained: no module deps, no toolchain download.
-export GOPROXY=off GOFLAGS=-mod=mod GOTOOLCHAIN=local
-export GOCACHE=/tmp/peacock-init-gocache GOPATH=/tmp/peacock-init-gopath HOME=/tmp
-
-echo "Building peacock-init for GOARCH=$GOARCH (ARCH=${ARCH:-?})..."
-go build -trimpath -ldflags "-s -w" -o stage/sbin/peacock-init .
-
-# /sbin/init -> peacock-init so the initramfs switch_root hands off to us.
-ln -sf peacock-init stage/sbin/init
-"""
+type = "raw"
+# Go cross-build — ./build.sh build() compiles peacock-init (CGO disabled, arch
+# from $ARCH); package() stages /sbin/peacock-init + the /sbin/init symlink.

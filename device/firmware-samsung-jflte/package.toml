@@ -8,8 +8,6 @@ description = "Placeholder firmware package for Samsung Galaxy S4 (jflte)"
 layout = "system"
 
 [build]
-use_qemu = false
-cross_compile = "arm-linux-gnueabihf-"
-script = """
-mkdir -p stage
-"""
+type = "raw"
+# Placeholder firmware port: no source, no compile. prepare() is a no-op (no
+# tarball); package() just produces the (empty) stage dir under $pkgdir.

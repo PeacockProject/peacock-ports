@@ -15,8 +15,6 @@ build_deps = ["base-devel"]
 # Arch-agnostic: the cross toolchain + CROSS_COMPILE resolve per consuming
 # device arch via the c-toolchain capability (no hardcoded triple).
 capabilities = ["c-toolchain"]
-script = """
-mkdir -p stage/usr/bin
-cp splash.c stage/usr/bin/splash.c
-${CROSS_COMPILE:-}gcc -static -O2 -s -o stage/usr/bin/peacock-splash splash.c -lm
-"""
+type = "raw"
+# Custom single-file C build — ./build.sh build() compiles peacock-splash with
+# the cross toolchain; package() stages it and splash.c into $pkgdir.

@@ -10,9 +10,6 @@ layout = "system"
 [build]
 source = "https://releases.linaro.org/components/toolchain/binaries/7.5-2019.12/arm-linux-gnueabihf/gcc-linaro-7.5.0-2019.12-x86_64_arm-linux-gnueabihf.tar.xz"
 checksum = "" # TODO: fill with actual sha256
-script = """
-if [ ! -d bin ]; then
-  echo "Expected bin/ directory not found"
-  exit 1
-fi
-"""
+type = "raw"
+# raw type: prebuilt toolchain. prepare() (default) extracts the tarball
+# (strip 1 -> bin/ at root); ./build.sh check()s bin/ exists and stages the tree.

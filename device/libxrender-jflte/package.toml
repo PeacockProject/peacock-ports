@@ -11,23 +11,9 @@ layout = "system"
 [build]
 source = "https://www.x.org/releases/individual/lib/libXrender-0.9.12.tar.xz"
 checksum = ""
+type = "autotools"
+patches = "jflte-xrender-guard.patch"
 build_deps = ["gcc", "make", "pkgconf", "patch", "libx11", "xorgproto", "xorg-util-macros"]
-script = """
-set -e
-
-tarball="$(ls -1 libXrender-*.tar.xz 2>/dev/null | head -n1)"
-if [ -n "$tarball" ]; then
-  tar -xf "$tarball" --strip-components=1
-fi
-
-patch -p1 < "$PWD/jflte-xrender-guard.patch"
-
-# Keep codegen conservative for this legacy userspace/kernel combo.
-export CFLAGS="${CFLAGS:-} -O2 -fno-strict-aliasing -fno-tree-vectorize"
-
-./configure --prefix=/usr --disable-static
-make -j$(nproc)
-make DESTDIR="$PWD/stage" install
-
-cp -a stage/usr ./
-"""
+# autotools type extracts + applies $patches (prepare default), then
+# configure/make/install. ./build.sh overrides configure() to keep codegen
+# conservative (CFLAGS) and pass --disable-static for this legacy stack.

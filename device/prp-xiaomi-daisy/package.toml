@@ -33,47 +33,7 @@ build_deps = ["base-devel", "android-tools", "python", "cpio", "gzip", "coreutil
 # Our own packages, ftr-installed into this build chroot before the build:
 # the PRP kernel (-> /boot/zImage) and static busybox (-> /usr/bin/busybox).
 build_dep_packages = ["linux-xiaomi-daisy-prp", "busybox", "peacock-splash", "dropbear"]
-script = """
-tarball="$(ls -1 master.tar.gz PRP-*.tar.gz 2>/dev/null | head -n1)"
-if [ -n "$tarball" ]; then
-  tar -xzf "$tarball" --strip-components=1
-fi
-
-if [ ! -f Makefile ] || [ ! -f configs/xiaomi-daisy.env ]; then
-  echo "Error: PRP sources not found after extraction"
-  exit 1
-fi
-
-OUT_DIR="${OUT_DIR:-$(pwd)/out/xiaomi-daisy}"
-mkdir -p "$OUT_DIR"
-
-# The PRP kernel + busybox were ftr-installed into this chroot as build
-# deps; point PRP's build at those installed paths.
-export KERNEL_IMAGE="${KERNEL_IMAGE:-/boot/zImage}"
-export BUSYBOX_STATIC="${BUSYBOX_STATIC:-/usr/bin/busybox}"
-
-make initramfs TARGET=xiaomi-daisy OUT_DIR="$OUT_DIR"
-make bootimg TARGET=xiaomi-daisy OUT_DIR="$OUT_DIR"
-
-BOOTIMG="$OUT_DIR/prp-xiaomi-daisy-recovery.img"
-if [ ! -f "$BOOTIMG" ]; then
-  echo "Error: expected PRP boot image not found at $BOOTIMG"
-  exit 1
-fi
-
-# PRP_ROOTFS overlay partition (flashed to boot_b). This is the recovery rootfs
-# the PeacockOS base (peacock-init) mounts to run the recovery session in place
-# on a flavor-boot failure: it carries prp-gui + /usr/bin/prp-recovery-enter.
-# daisy is non-monolithic (the full overlay won't fit lk2nd's 16 MiB ramdisk),
-# so the overlay ships as a SEPARATE image alongside the boot.img.
-make overlay TARGET=xiaomi-daisy OUT_DIR="$OUT_DIR"
-OVERLAY_IMG="$OUT_DIR/prp-rootfs.img"
-if [ ! -f "$OVERLAY_IMG" ]; then
-  echo "Error: expected PRP overlay image not found at $OVERLAY_IMG"
-  exit 1
-fi
-
-mkdir -p stage/usr/share/peacock/recovery
-install -m 0644 "$BOOTIMG" stage/usr/share/peacock/recovery/prp-xiaomi-daisy-recovery.img
-install -m 0644 "$OVERLAY_IMG" stage/usr/share/peacock/recovery/prp-xiaomi-daisy-rootfs.img
-"""
+type = "raw"
+# prepare() (default) extracts PRP master (strip 1); ./build.sh runs PRP's make
+# targets verbatim (kernel + busybox from the ftr-installed build deps) and
+# stages the boot.img + the separate PRP_ROOTFS overlay image.

@@ -11,16 +11,5 @@ layout = "system"
 source = "https://github.com/eudev-project/eudev/releases/download/v3.2.14/eudev-3.2.14.tar.gz"
 checksum = ""
 build_deps = ["gperf", "pkgconf", "gcc", "make"]
-script = """
-./configure \
-    --prefix=/usr \
-    --sysconfdir=/etc \
-    --bindir=/usr/bin \
-    --sbindir=/usr/bin \
-    --libdir=/usr/lib \
-    --enable-manpages=no \
-    --disable-static
-
-make -j$(nproc)
-make DESTDIR="$PWD/stage" install
-"""
+type = "autotools"
+configure_args = "--sysconfdir=/etc --bindir=/usr/bin --sbindir=/usr/bin --libdir=/usr/lib --enable-manpages=no --disable-static"

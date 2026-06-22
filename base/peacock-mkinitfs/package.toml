@@ -13,12 +13,6 @@ checksum = ""
 build_deps = ["base-devel", "go", "coreutils"]
 use_qemu = false
 cross_compile = ""
-script = """
-tarball="$(ls -1 peacock-mkinitfs-*.tar.gz main.tar.gz 2>/dev/null | head -n1)"
-if [ -n "$tarball" ]; then
-  tar -xzf "$tarball" --strip-components=1
-fi
-
-mkdir -p stage/usr/bin
-go build -trimpath -ldflags "-s -w" -o stage/usr/bin/peacock-mkinitfs ./cmd/peacock-mkinitfs
-"""
+type = "raw"
+# Go build from the upstream tarball — prepare() extracts; ./build.sh build()
+# compiles ./cmd/peacock-mkinitfs; package() stages /usr/bin/peacock-mkinitfs.

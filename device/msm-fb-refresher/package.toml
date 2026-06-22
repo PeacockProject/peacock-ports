@@ -8,13 +8,9 @@ description = "Placeholder msm-fb-refresher package for Samsung Galaxy S4 (jflte
 layout = "system"
 
 [build]
+type = "raw"
 build_dep_packages = ["toolchain-arm-linux-gnueabihf"]
 use_qemu = false
 cross_compile = "arm-linux-gnueabihf-"
-script = """
-mkdir -p stage/usr/bin
-cp refresher.c stage/usr/bin/refresher.c
-${CROSS_COMPILE:-}gcc -static -o stage/usr/bin/msm-fb-refresher refresher.c
-STRIP_BIN="${CROSS_COMPILE:-}strip"
-$STRIP_BIN -s stage/usr/bin/msm-fb-refresher 2>/dev/null || strip -s stage/usr/bin/msm-fb-refresher
-"""
+# No source tarball: refresher.c is vendored in the port dir, so prepare() is a
+# no-op. ./build.sh compiles it (build()) and stages the binary + source (package()).

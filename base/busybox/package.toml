@@ -11,37 +11,11 @@ layout = "system"
 source = "https://busybox.net/downloads/busybox-1.36.1.tar.bz2"
 checksum = "b8cc24c9574d809e7279c3be349795c5d5ceb6fdf19ca709f80cde50e47de314"
 use_qemu = false
+type = "raw"
 build_deps = ["base-devel"]
 # Arch-agnostic: the cross toolchain + CROSS_COMPILE come from the
 # c-toolchain capability, resolved for whatever device arch consumes
 # busybox (aarch64, armv7h, ...). No hardcoded triple.
 capabilities = ["c-toolchain"]
-script = """
-echo "Configuring Busybox..."
-make defconfig
-# The deprecated `tc` applet no longer builds against modern kernel
-# headers (the CBQ structs it uses were removed). Disable it.
-sed -i -e 's/^CONFIG_TC=y/# CONFIG_TC is not set/' .config
-# Use busybox's own crypt instead of libc's. glibc moved crypt() to libxcrypt,
-# which ships no static .a — so a NATIVE glibc static link (e.g. the x86_64
-# target) can't find libcrypt. (Cross toolchains bundle one; native doesn't.)
-sed -i -e 's/^# CONFIG_USE_BB_CRYPT is not set/CONFIG_USE_BB_CRYPT=y/' .config
-grep -q '^CONFIG_USE_BB_CRYPT=y' .config || echo 'CONFIG_USE_BB_CRYPT=y' >> .config
-yes "" | make oldconfig
-
-echo "Building static Busybox (CROSS_COMPILE=${CROSS_COMPILE:-native})..."
-# busybox's trylink still PROBES -lcrypt even with built-in crypt; on a native
-# glibc target there isn't even a static libcrypt.a to probe against. Drop an
-# empty stub on the link path so the probe succeeds and crypt is excluded
-# (harmless where a real libcrypt.a exists — bb-crypt never references it).
-STUBLIB="$(pwd)/.peacock-stublib"; mkdir -p "$STUBLIB"; ar crs "$STUBLIB/libcrypt.a"
-# LDFLAGS must be ONE arg (the -L has a space before it) or make eats "-L..."
-# as its own flag. CROSS_COMPILE (no spaces) can expand unquoted.
-CC_ARG=""
-[ -n "${CROSS_COMPILE:-}" ] && CC_ARG="CROSS_COMPILE=${CROSS_COMPILE}"
-make LDFLAGS="--static -L$STUBLIB" $CC_ARG -j"$(nproc)" busybox
-
-echo "Staging busybox -> /usr/bin/busybox ..."
-mkdir -p stage/usr/bin
-install -m 0755 busybox stage/usr/bin/busybox
-"""
+# raw type: ./build.sh defines build()/package(); prepare() (default) extracts
+# the single busybox tarball (strip 1).

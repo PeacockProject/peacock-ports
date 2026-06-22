@@ -13,23 +13,10 @@ prefix = "/compat/glibc"
 [build]
 source = "https://ftp.gnu.org/gnu/glibc/glibc-2.40.tar.gz"
 checksum = ""
+type = "raw"
 build_deps = ["base-devel", "bison", "gawk", "python"]
-script = """
-tarball="$(ls -1 glibc-*.tar.gz 2>/dev/null | head -n1)"
-if [ -n "$tarball" ]; then
-  tar -xzf "$tarball" --strip-components=1
-fi
-mkdir -p build && cd build
-case "${ARCH:-aarch64}" in
-  aarch64)  TRIPLE=aarch64-linux-gnu ;;
-  armv7h)   TRIPLE=arm-linux-gnueabihf ;;
-  x86_64)   TRIPLE=x86_64-linux-gnu ;;
-  *) echo "compat-glibc: unsupported ARCH=${ARCH}" >&2 ; exit 1 ;;
-esac
-../configure --prefix=/compat/glibc --host="$TRIPLE" --enable-shared --disable-werror
-make -j"$(nproc)"
-make install DESTDIR="$(pwd)/../stage"
-"""
+# raw type: ./build.sh defines build()/package(); prepare() (default) extracts
+# the single glibc tarball (strip 1).
 
 [provides]
 glibc = "2.40"
