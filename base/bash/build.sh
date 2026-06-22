@@ -1,9 +1,9 @@
 # shellcheck shell=sh
-# bash — vanilla autotools (the autotools type runs configure/make/install).
-# Override package() only to add the /bin/sh -> bash symlink that OpenRC and
-# many base scripts require. (Rootfs uses /bin -> /usr/bin, so /usr/bin/sh.)
+# bash — vanilla autotools; only the install step needs a post-step: the
+# /bin/sh -> bash symlink that OpenRC and many base scripts require. Reuse the
+# autotools install, then add the link. (Rootfs /bin -> /usr/bin, so /usr/bin/sh.)
 
 package() {
-  make install DESTDIR="$pkgdir"
+  default_install
   ln -sf bash "$pkgdir/usr/bin/sh"
 }
