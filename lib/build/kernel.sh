@@ -63,7 +63,7 @@ kernel_prepare_tree() { :; }
 kernel_configure() { :; }
 prp_configure() { :; }
 
-build() {
+default_build() {
   : "${kernel_dtb:?kernel: set kernel_dtb in build.sh}"
   kernel_prepare_tree
 
@@ -89,7 +89,7 @@ build() {
   fi
 }
 
-package() {
+default_package() {
   arch="$(_karch)"
   mkdir -p "$pkgdir/boot/dtbs/$(dirname "$kernel_dtb")"
 
@@ -112,3 +112,8 @@ package() {
   [ -f .peacock-prp-image ] && cp .peacock-prp-image "$pkgdir/boot/zImage-prp"
   peacock_msg "staged $(ls -l "$pkgdir/boot/zImage" 2>/dev/null)"
 }
+
+# Thin overridable wrappers — a port can override build()/package() and still
+# reuse default_build / default_package (e.g. package(){ default_package; ...; }).
+build() { default_build; }
+package() { default_package; }
