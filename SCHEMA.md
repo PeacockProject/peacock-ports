@@ -164,9 +164,25 @@ this migration.
 | `dependencies` | array of string | existing | Runtime dependencies in the **base distro** namespace (Arch package names today). Used by the legacy installer path. |
 | `dependencies_openrc` | array of string | existing | Runtime dependencies that only apply when the target init system is OpenRC. |
 | `dependencies_systemd` | array of string | existing | Runtime dependencies that only apply when the target init system is systemd. |
-| `script` | string (multi-line) | existing | Shell script executed inside the build chroot. Expected to populate `stage/` with the install tree. |
+| `type` | string | current | Build-phase set sourced from `lib/build/<type>.sh`: `autotools` \| `make` \| `kernel` \| `bootloader` \| `raw` (default). Drives prepare→build→check→package; a sibling `build.sh` overrides any phase. The canonical replacement for `script`. |
+| `script` | string (multi-line) | **deprecated** | Legacy inline build script that populated `stage/`. Removed from every port; retained only in the parser for back-compat. New ports MUST use `type` + `build.sh` — CI rejects new inline `script`. |
 | `use_qemu` | bool or `"auto"` | existing | Whether the build needs QEMU user emulation (for cross-builds). |
 | `cross_compile` | string | existing | Cross-compile triplet prefix, e.g. `"aarch64-linux-gnu-"`. Empty = host build. |
+
+### Build model: `type` + `build.sh` (replaces inline `script`)
+
+Build logic lives in a `build.sh` next to `package.toml`, not in TOML. The
+harness sources `lib/build/default.sh`, then `lib/build/<type>.sh`, then the
+port's `build.sh`, and runs `prepare → build → check → package`. Contract:
+
+- `prepare()` extracts the first source tarball (`--strip-components=1`) and applies `$patches`.
+- `build()` compiles; `package()` populates `$pkgdir` (the install tree — the old `stage/`).
+- Env: `$srcdir $builddir $pkgdir $jobs`, plus `ARCH`/`CROSS_COMPILE` when cross. Helpers: `peacock_msg`, `peacock_die`, `peacock_extract`.
+- Each type exposes overridable `default_*` steps (`default_configure` / `default_compile` / `default_install`, …) so a port overrides one step and reuses the rest — e.g. `package() { default_install; ln -sf foo "$pkgdir/usr/bin/bar"; }`.
+- A kernel port that sets `prp_kernel_config` additionally stages a PRP-trimmed kernel into `stage-prp/`, which the harness packages as the `<name>-prp` subpackage.
+
+A vanilla port needs only `type = "autotools"` (no `build.sh`). See `lib/build/*.sh`
+and `base/bash`, `base/bc`, `device/minkernel-oppo-a16` for examples.
 
 ---
 

@@ -1,0 +1,44 @@
+name: lint
+on:
+  push:
+  pull_request:
+
+jobs:
+  ports-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reject deprecated inline TOML build scripts
+        run: |
+          hits=$(grep -rl '^script = """' --include=package.toml . || true)
+          if [ -n "$hits" ]; then
+            echo "::error::inline 'script = \"\"\"' is deprecated — use [build].type + a build.sh (see SCHEMA.md)"
+            echo "$hits" | sed 's/^/  /'
+            exit 1
+          fi
+          echo "OK: no inline build scripts"
+
+      - name: build.sh files must parse as POSIX sh
+        run: |
+          rc=0
+          for f in $(find . -name build.sh -not -path './.git/*'); do
+            if ! sh -n "$f"; then echo "::error file=$f::build.sh failed sh -n"; rc=1; fi
+          done
+          [ $rc -eq 0 ] && echo "OK: all build.sh parse"
+          exit $rc
+
+      - name: package.toml files must parse
+        run: |
+          python3 - <<'PY'
+          import tomllib, glob, sys
+          bad = 0
+          for p in sorted(glob.glob('**/package.toml', recursive=True)):
+              try:
+                  tomllib.load(open(p, 'rb'))
+              except Exception as e:
+                  print(f"::error file={p}::TOML parse error: {e}")
+                  bad = 1
+          print("OK: all package.toml parse" if not bad else "TOML errors found")
+          sys.exit(bad)
+          PY
