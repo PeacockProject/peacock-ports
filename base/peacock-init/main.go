@@ -32,16 +32,21 @@ import (
 )
 
 const (
-	activeFlavorFile = "/peacock/etc/active-flavor"
-	flavorsRoot      = "/flavors"
 	// readyFile lives under the base-owned /peacock bind (NOT /run) so the
 	// flavor mounting its own /run tmpfs can't shadow it — the flavor writes
 	// here when it reaches its default runlevel and the base watches for it.
-	readyFile = "/peacock/.flavor-ready"
-	prpLabel         = "PRP_ROOTFS"
-	recoveryMount    = "/recovery"
-	bootTimeout      = 90 * time.Second
-	logPrefix        = "peacock-init: "
+	readyFile     = "/peacock/.flavor-ready"
+	prpLabel      = "PRP_ROOTFS"
+	recoveryMount = "/recovery"
+	bootTimeout   = 90 * time.Second
+	logPrefix     = "peacock-init: "
+)
+
+// activeFlavorFile / flavorsRoot are vars (not consts) only so tests can point
+// them at a sandbox; production values are the real on-base paths.
+var (
+	activeFlavorFile = "/peacock/etc/active-flavor"
+	flavorsRoot      = "/flavors"
 )
 
 // baseOwnedTrees persist across distro swaps and are bind-mounted into the
