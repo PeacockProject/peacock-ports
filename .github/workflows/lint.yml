@@ -42,3 +42,6 @@ jobs:
           print("OK: all package.toml parse" if not bad else "TOML errors found")
           sys.exit(bad)
           PY
+
+      - name: lib/build phase-model tests
+        run: ./tests/buildlib_test.sh
