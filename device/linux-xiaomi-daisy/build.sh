@@ -70,7 +70,7 @@ detect_dtb() {
 # FAIL LOUDLY if the staged file is empty. A silently-empty dtbs/ previously
 # shipped a DTB-less kernel feather and bricked the boot ("No DTB configured").
 stage_daisy_dtb() {
-  mkdir -p $pkgdir/boot/dtbs/qcom
+  mkdir -p "$pkgdir/boot/dtbs/qcom"
   # Ensure the DTB is actually built (an earlier make target may have skipped it).
   if [ -n "${DTB_MAKE_TARGET:-}" ] && [ ! -f "${DTB_TARGET:-/nonexistent}" ]; then
     make ${MAKE_ARGS:-} "$DTB_MAKE_TARGET" || true
@@ -83,8 +83,8 @@ stage_daisy_dtb() {
     if [ -n "$c" ] && [ -f "$c" ]; then src="$c"; break; fi
   done
   [ -n "$src" ] || { echo "Error: daisy DTB not found after build"; exit 1; }
-  cp "$src" $pkgdir/boot/dtbs/qcom/msm8953-xiaomi-daisy.dtb
-  [ -s $pkgdir/boot/dtbs/qcom/msm8953-xiaomi-daisy.dtb ] || { echo "Error: staged daisy DTB is empty"; exit 1; }
+  cp "$src" "$pkgdir/boot/dtbs/qcom/msm8953-xiaomi-daisy.dtb"
+  [ -s "$pkgdir/boot/dtbs/qcom/msm8953-xiaomi-daisy.dtb" ] || { echo "Error: staged daisy DTB is empty"; exit 1; }
   echo "Staged daisy DTB: $src ($(wc -c < "$src") bytes)"
 }
 
@@ -156,7 +156,7 @@ fi
 #   $pkgdir/usr/lib/modules/...     modules
 echo "Compiling modules..."
 rm -rf "$pkgdir" stage-prp
-mkdir -p $pkgdir/boot
+mkdir -p "$pkgdir/boot"
 if grep -q "^CONFIG_MODULES=y" .config 2>/dev/null; then
   make $MAKE_ARGS -j"$JOBS" modules
   make $MAKE_ARGS modules_install INSTALL_MOD_PATH="$pkgdir/usr"
@@ -168,15 +168,15 @@ stage_daisy_dtb
 # `cat Image.gz + dtb` just bloated zImage with trailing bytes lk2nd and the
 # kernel both ignore (and masked the empty-dtbs bug above).
 if [ -f "arch/arm64/boot/Image.gz" ]; then
-  cp arch/arm64/boot/Image.gz $pkgdir/boot/zImage
+  cp arch/arm64/boot/Image.gz "$pkgdir/boot/zImage"
 elif [ -f "arch/arm64/boot/Image" ]; then
-  cp arch/arm64/boot/Image $pkgdir/boot/zImage
+  cp arch/arm64/boot/Image "$pkgdir/boot/zImage"
 else
   echo "Error: kernel image not found"
   exit 1
 fi
 # Ship the resolved kernel config (PRP's check-kernel-config.sh reads it).
-cp .config $pkgdir/boot/config
+cp .config "$pkgdir/boot/config"
 
 ##############################################################################
 # PASS 2 — PRP-trimmed kernel ($PRP_KERNEL_CONFIG) -> zImage-prp

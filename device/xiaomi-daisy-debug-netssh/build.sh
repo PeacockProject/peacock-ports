@@ -9,14 +9,14 @@ prepare() { :; }
 package() {
 
 mkdir -p \
-    $pkgdir/usr/local/sbin \
-    $pkgdir/etc/init.d \
-    $pkgdir/etc/runlevels/boot \
-    $pkgdir/etc/runlevels/default \
-    $pkgdir/etc/peacock \
-    $pkgdir/etc/ssh
+    "$pkgdir/usr/local/sbin" \
+    "$pkgdir/etc/init.d" \
+    "$pkgdir/etc/runlevels/boot" \
+    "$pkgdir/etc/runlevels/default" \
+    "$pkgdir/etc/peacock" \
+    "$pkgdir/etc/ssh"
 
-cat > $pkgdir/etc/peacock/debug-rndis.conf <<'CFG'
+cat > "$pkgdir/etc/peacock/debug-rndis.conf" <<'CFG'
 # Debug USB gadget network defaults (PRP-like)
 USB_MODE="rndis"
 RNDIS_ADDR="172.16.42.1/24"
@@ -29,7 +29,7 @@ USB_GADGET_PATH="/sys/devices/platform/soc@0/7000000.usb/android0"
 USB_UDC_NAME=""
 CFG
 
-cat > $pkgdir/etc/peacock/debug-ssh.conf <<'CFG'
+cat > "$pkgdir/etc/peacock/debug-ssh.conf" <<'CFG'
 # Insecure on purpose for local debug images.
 SSHD_PORT="22"
 SSHD_LISTEN_ADDR="0.0.0.0"
@@ -39,7 +39,7 @@ PERMIT_EMPTY_PASSWORDS="yes"
 ALLOW_EMPTY_ROOT_PASSWORD="1"
 CFG
 
-cat > $pkgdir/usr/local/sbin/peacock-debug-rndis-up <<'EOF_RNDIS_UP'
+cat > "$pkgdir/usr/local/sbin/peacock-debug-rndis-up" <<'EOF_RNDIS_UP'
 #!/bin/sh
 set -eu
 
@@ -250,7 +250,7 @@ fi
 exit 0
 EOF_RNDIS_UP
 
-cat > $pkgdir/usr/local/sbin/peacock-debug-rndis-down <<'EOF_RNDIS_DOWN'
+cat > "$pkgdir/usr/local/sbin/peacock-debug-rndis-down" <<'EOF_RNDIS_DOWN'
 #!/bin/sh
 set -eu
 
@@ -273,9 +273,9 @@ fi
 exit 0
 EOF_RNDIS_DOWN
 
-chmod 0755 $pkgdir/usr/local/sbin/peacock-debug-rndis-up $pkgdir/usr/local/sbin/peacock-debug-rndis-down
+chmod 0755 "$pkgdir/usr/local/sbin/peacock-debug-rndis-up" "$pkgdir/usr/local/sbin/peacock-debug-rndis-down"
 
-cat > $pkgdir/etc/init.d/peacock-debug-rndis <<'EOF_RNDIS_SVC'
+cat > "$pkgdir/etc/init.d/peacock-debug-rndis" <<'EOF_RNDIS_SVC'
 #!/sbin/openrc-run
 description="Peacock debug USB RNDIS network (daisy)"
 
@@ -300,7 +300,7 @@ depend() {
 }
 EOF_RNDIS_SVC
 
-cat > $pkgdir/usr/local/sbin/peacock-debug-sshd-prepare <<'EOF_SSH_PREP'
+cat > "$pkgdir/usr/local/sbin/peacock-debug-sshd-prepare" <<'EOF_SSH_PREP'
 #!/bin/sh
 set -eu
 
@@ -373,9 +373,9 @@ CFG
 exit 0
 EOF_SSH_PREP
 
-chmod 0755 $pkgdir/usr/local/sbin/peacock-debug-sshd-prepare
+chmod 0755 "$pkgdir/usr/local/sbin/peacock-debug-sshd-prepare"
 
-cat > $pkgdir/usr/local/sbin/peacock-debug-sshd <<'EOF_SSHD_WRAPPER'
+cat > "$pkgdir/usr/local/sbin/peacock-debug-sshd" <<'EOF_SSHD_WRAPPER'
 #!/bin/sh
 set -eu
 
@@ -399,7 +399,7 @@ echo "peacock-debug-sshd: no ssh daemon binary found (sshd/dropbear)" >&2
 exit 127
 EOF_SSHD_WRAPPER
 
-cat > $pkgdir/etc/init.d/peacock-debug-sshd <<'EOF_SSHD_SVC'
+cat > "$pkgdir/etc/init.d/peacock-debug-sshd" <<'EOF_SSHD_SVC'
 #!/sbin/openrc-run
 description="Peacock debug SSH daemon"
 
@@ -426,15 +426,15 @@ depend() {
 }
 EOF_SSHD_SVC
 
-chmod 0755 $pkgdir/usr/local/sbin/peacock-debug-sshd
+chmod 0755 "$pkgdir/usr/local/sbin/peacock-debug-sshd"
 # Ship a fallback busybox + udhcpd applet shim in case target rootfs doesn't include DHCP server.
 if command -v busybox >/dev/null 2>&1; then
-    cp "$(command -v busybox)" $pkgdir/usr/local/sbin/busybox
-    chmod 0755 $pkgdir/usr/local/sbin/busybox
-    ln -sf busybox $pkgdir/usr/local/sbin/udhcpd
+    cp "$(command -v busybox)" "$pkgdir/usr/local/sbin/busybox"
+    chmod 0755 "$pkgdir/usr/local/sbin/busybox"
+    ln -sf busybox "$pkgdir/usr/local/sbin/udhcpd"
 fi
-chmod 0755 $pkgdir/etc/init.d/peacock-debug-rndis $pkgdir/etc/init.d/peacock-debug-sshd
-ln -sf /etc/init.d/peacock-debug-rndis $pkgdir/etc/runlevels/boot/peacock-debug-rndis
-ln -sf /etc/init.d/peacock-debug-rndis $pkgdir/etc/runlevels/default/peacock-debug-rndis
-ln -sf /etc/init.d/peacock-debug-sshd $pkgdir/etc/runlevels/default/peacock-debug-sshd
+chmod 0755 "$pkgdir/etc/init.d/peacock-debug-rndis" "$pkgdir/etc/init.d/peacock-debug-sshd"
+ln -sf /etc/init.d/peacock-debug-rndis "$pkgdir/etc/runlevels/boot/peacock-debug-rndis"
+ln -sf /etc/init.d/peacock-debug-rndis "$pkgdir/etc/runlevels/default/peacock-debug-rndis"
+ln -sf /etc/init.d/peacock-debug-sshd "$pkgdir/etc/runlevels/default/peacock-debug-sshd"
 }

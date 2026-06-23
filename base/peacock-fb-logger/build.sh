@@ -4,9 +4,9 @@
 # package() writes the files into $pkgdir verbatim from the old inline script.
 
 package() {
-mkdir -p $pkgdir/usr/bin $pkgdir/etc/init.d $pkgdir/etc/runlevels/sysinit
+mkdir -p "$pkgdir/usr/bin" "$pkgdir/etc/init.d" "$pkgdir/etc/runlevels/sysinit"
 
-cat > $pkgdir/usr/bin/peacock-fb-refresher <<'EOF'
+cat > "$pkgdir/usr/bin/peacock-fb-refresher" <<'EOF'
 #!/bin/sh
 set -eu
 
@@ -33,9 +33,9 @@ done
 exec /usr/bin/msm-fb-refresher --loop
 EOF
 
-chmod 0755 $pkgdir/usr/bin/peacock-fb-refresher
+chmod 0755 "$pkgdir/usr/bin/peacock-fb-refresher"
 
-cat > $pkgdir/etc/init.d/peacock-fb-refresher <<'EOF'
+cat > "$pkgdir/etc/init.d/peacock-fb-refresher" <<'EOF'
 #!/sbin/openrc-run
 description="Keep MSM framebuffer refreshing"
 command="/usr/bin/peacock-fb-refresher"
@@ -48,6 +48,6 @@ depend() {
 }
 EOF
 
-chmod 0755 $pkgdir/etc/init.d/peacock-fb-refresher
-ln -sf /etc/init.d/peacock-fb-refresher $pkgdir/etc/runlevels/sysinit/peacock-fb-refresher
+chmod 0755 "$pkgdir/etc/init.d/peacock-fb-refresher"
+ln -sf /etc/init.d/peacock-fb-refresher "$pkgdir/etc/runlevels/sysinit/peacock-fb-refresher"
 }

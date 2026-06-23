@@ -4,9 +4,9 @@
 # files into $pkgdir verbatim from the old inline script.
 
 package() {
-mkdir -p $pkgdir/usr/bin $pkgdir/etc/init.d $pkgdir/etc/runlevels/default
+mkdir -p "$pkgdir/usr/bin" "$pkgdir/etc/init.d" "$pkgdir/etc/runlevels/default"
 
-cat > $pkgdir/usr/bin/peacock-fastfetch-boot <<'EOF'
+cat > "$pkgdir/usr/bin/peacock-fastfetch-boot" <<'EOF'
 #!/bin/sh
 if [ ! -x /usr/bin/fastfetch ]; then
     echo "fastfetch: binary not found"
@@ -29,9 +29,9 @@ echo "=== FASTFETCH BOOT SUMMARY ==="
 echo "=== FASTFETCH END ==="
 EOF
 
-chmod 0755 $pkgdir/usr/bin/peacock-fastfetch-boot
+chmod 0755 "$pkgdir/usr/bin/peacock-fastfetch-boot"
 
-cat > $pkgdir/usr/bin/peacock-fastfetch-fb <<'EOF'
+cat > "$pkgdir/usr/bin/peacock-fastfetch-fb" <<'EOF'
 #!/bin/sh
 FBDEV="${FBDEV:-/dev/fb0}"
 
@@ -61,9 +61,9 @@ MAX_LINES=26
     done
 EOF
 
-chmod 0755 $pkgdir/usr/bin/peacock-fastfetch-fb
+chmod 0755 "$pkgdir/usr/bin/peacock-fastfetch-fb"
 
-cat > $pkgdir/etc/init.d/peacock-fastfetch <<'EOF'
+cat > "$pkgdir/etc/init.d/peacock-fastfetch" <<'EOF'
 #!/sbin/openrc-run
 description="Print fastfetch summary and repaint framebuffer at end of boot"
 command="/usr/bin/peacock-fastfetch-boot"
@@ -76,6 +76,6 @@ depend() {
 }
 EOF
 
-chmod 0755 $pkgdir/etc/init.d/peacock-fastfetch
-ln -sf /etc/init.d/peacock-fastfetch $pkgdir/etc/runlevels/default/peacock-fastfetch
+chmod 0755 "$pkgdir/etc/init.d/peacock-fastfetch"
+ln -sf /etc/init.d/peacock-fastfetch "$pkgdir/etc/runlevels/default/peacock-fastfetch"
 }
