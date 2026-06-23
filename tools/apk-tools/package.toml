@@ -1,0 +1,21 @@
+# apk-tools — Alpine's package manager (`apk`), built as a host build-env tool
+# for the self-hosting PeacockOS build base (Track F). Lets the alpine flavor
+# bootstrap inside the build base instead of relying on host/AUR apk.
+#
+# Dynamic glibc build: apk runs INSIDE the (glibc) build base, so no musl-static
+# is needed — that was only required for the rejected run-on-arbitrary-host idea.
+[package]
+name = "apk-tools"
+version = "2.14.4"
+description = "Alpine Linux package manager (apk) — PeacockOS build-env tool"
+
+[install]
+layout = "system"
+
+[build]
+source = "https://gitlab.alpinelinux.org/alpine/apk-tools/-/archive/v2.14.4/apk-tools-v2.14.4.tar.gz"
+checksum = ""
+type = "raw"
+target_arch = "x86_64"
+use_qemu = false
+build_deps = ["base-devel", "zlib", "openssl", "zstd", "scdoc", "linux-api-headers"]
