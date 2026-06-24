@@ -135,14 +135,17 @@ within a day or on demand.
 
 ## Open items
 
-- [x] Generator `site/scripts/gen-devices.py` (brand-grouped cards + search on the site,
-      one wiki page per device with a marked status block, status.json).
-- [ ] **Build `.github/workflows/devices.yml`** (above) — the generator runs by hand for now.
-- [ ] **Drop device photos** into `site/devices/img/<codename>.webp` (daisy, jflte,
-      oppo6765, qemu-x86_64). Placeholders until then.
-- [ ] **Push the site** so `/devices` goes live (wiki is already live).
+- [x] Generator `site/scripts/gen-devices.py` (brand cards + search on the site, one wiki
+      page per device with a marked status block, status.json, image→webp conversion).
+- [x] CI built: site `.github/workflows/devices.yml` (repository_dispatch + daily schedule
+      + manual + on generator change) and peacock-ports `notify-site.yml`. Site has the
+      `WIKI_API_TOKEN` secret. For **instant** cross-repo trigger, add a `SITE_DISPATCH_TOKEN`
+      PAT secret in peacock-ports (fine-grained, repo-dispatch on PeacockProject/site);
+      without it the site still updates on the daily schedule / manual run.
+- [x] Site + status.toml pushed (site→master live, peacock-ports→main).
+- [ ] **Drop device photos**: `image.png` in each `peacock-ports/device/<port>/`
+      (xiaomi-daisy, samsung-jflte, oppo-a16, qemu-x86_64). Placeholders until then.
 - [ ] Fill author prose on each `devices/<codename>` wiki page (stubs created).
 - [ ] Backfill spec `TODO`s (jflte chipset/RAM, displays, kernel versions) in each
       `status.toml` — they're specs, not test claims.
-- [ ] Decide the cross-repo trigger for the workflow (dispatch PAT vs schedule-only).
 - [ ] Optional: the live wiki widget instead of the baked marked block.
