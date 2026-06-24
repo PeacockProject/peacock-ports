@@ -1,0 +1,14 @@
+[package]
+name = "e2fsprogs-prp"
+version = "1.47.0"
+description = "Lean static-musl ext2/3/4 tools for the PRP installer (mke2fs/mkfs.ext4, e2fsck, resize2fs, tune2fs) — busybox's mkfs.ext4 is too limited to format the target. Self-contained; recovery-only twin of e2fsprogs."
+
+[install]
+layout = "system"
+
+[build]
+source = "https://mirrors.edge.kernel.org/pub/linux/kernel/people/tytso/e2fsprogs/v1.47.0/e2fsprogs-1.47.0.tar.gz"
+checksum = ""
+type = "raw"
+build_deps = ["base-devel", "zig", "pkgconf"]
+capabilities = ["c-toolchain"]

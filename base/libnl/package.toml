@@ -1,0 +1,16 @@
+[package]
+name = "libnl"
+version = "3.7.0"
+description = "Netlink protocol library (libnl-3 + libnl-genl-3), static for cross builds. Consumed as a build_dep_package by wpa_supplicant (nl80211). Not shipped at runtime — wpa_supplicant links it statically."
+
+[install]
+layout = "system"
+
+[build]
+source = "https://github.com/thom311/libnl/releases/download/libnl3_7_0/libnl-3.7.0.tar.gz"
+checksum = ""
+type = "raw"
+build_deps = ["base-devel", "zig", "bison", "flex", "pkgconf"]
+# c-toolchain resolves the consuming arch ($ARCH); the actual compile is
+# zig cc against musl (static .a, no hardcoded triple).
+capabilities = ["c-toolchain"]

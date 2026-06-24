@@ -1,0 +1,17 @@
+[package]
+name = "wpa_supplicant"
+version = "2.10"
+description = "WPA/WPA2 supplicant + wpa_cli for PRP recovery Wi-Fi. Static-musl, nl80211 (libnl) with WEXT fallback, internal TLS/crypto (no openssl) — self-contained for the recovery rootfs."
+
+[install]
+layout = "system"
+
+[build]
+source = "https://w1.fi/releases/wpa_supplicant-2.10.tar.gz"
+checksum = ""
+type = "raw"
+build_deps = ["base-devel", "zig", "pkgconf"]
+# libnl provides the static libnl-3.a / libnl-genl-3.a + headers + .pc that the
+# nl80211 driver links against (cf. lvm2 consuming util-linux's libblkid.a).
+build_dep_packages = ["libnl"]
+capabilities = ["c-toolchain"]

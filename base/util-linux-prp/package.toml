@@ -1,0 +1,18 @@
+[package]
+name = "util-linux-prp"
+version = "2.41"
+description = "Lean static-musl util-linux subset for PRP recovery — full fdisk/sfdisk + blkid/partx/losetup, built fully static via zig cc so PRP ships no glibc/ncurses/readline/dynamic-linker. The full dynamic util-linux stays for the OS; this is the recovery-only twin (cf. linux-xiaomi-daisy-prp)."
+
+[install]
+layout = "system"
+
+[build]
+source = "https://www.kernel.org/pub/linux/utils/util-linux/v2.41/util-linux-2.41.tar.gz"
+checksum = ""
+type = "raw"
+build_deps = ["base-devel", "zig"]
+# c-toolchain only resolves the consuming device's $ARCH; the actual compile is
+# zig cc against musl (static, no hardcoded triple, no glibc cross toolchain).
+capabilities = ["c-toolchain"]
+# raw type: ./build.sh defines build()/package(); prepare() (default) extracts
+# the single util-linux tarball (strip 1).

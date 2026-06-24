@@ -65,6 +65,43 @@ build() { :; }
 check() { :; }
 package() { :; }
 
+# peacock_tidy — make the staged package lean before it's archived into a
+# .feather: strip debug symbols from ELF binaries. Runs for EVERY port. A port
+# can set no_strip=1 to keep symbols (e.g. a debug/-dev package).
+#
+# NOTE: we deliberately do NOT delete .a/.la here — static archives are a
+# legitimate package payload consumed via build_dep_packages (e.g. util-linux's
+# libblkid.a for lvm2, libnl for wpa_supplicant). strip skips them anyway (an
+# `ar` archive isn't ELF). Runtime cruft like .a is trimmed at rootfs-assembly
+# (see PRP build-overlay.sh), not stripped from the package.
+peacock_tidy() {
+  [ -d "$pkgdir" ] || return 0
+
+  if [ "${no_strip:-0}" != "1" ]; then
+    # Pick a strip that understands the target ELFs: the cross strip when
+    # cross-compiling, else llvm-strip (arch-agnostic), else native strip
+    # (works in a QEMU-mode same-arch chroot).
+    local STRIPBIN=""
+    if [ -n "${CROSS_COMPILE:-}" ] && command -v "${CROSS_COMPILE}strip" >/dev/null 2>&1; then
+      STRIPBIN="${CROSS_COMPILE}strip"
+    elif command -v llvm-strip >/dev/null 2>&1; then
+      STRIPBIN="llvm-strip"
+    elif command -v strip >/dev/null 2>&1; then
+      STRIPBIN="strip"
+    fi
+    if [ -n "$STRIPBIN" ]; then
+      peacock_msg "strip ($pkgname) via $STRIPBIN"
+      find "$pkgdir" -type f 2>/dev/null | while IFS= read -r f; do
+        case "$(LC_ALL=C file -b "$f" 2>/dev/null)" in
+          *ELF*) "$STRIPBIN" --strip-unneeded "$f" 2>/dev/null || true ;;
+        esac
+      done
+    else
+      peacock_msg "strip: no strip tool found, skipping"
+    fi
+  fi
+}
+
 # run_phases — the driver the harness invokes. Fails on any error.
 run_phases() {
   set -e
@@ -78,4 +115,6 @@ run_phases() {
   peacock_msg "package ($pkgname -> $pkgdir)"
   mkdir -p "$pkgdir"
   package
+  peacock_msg "tidy ($pkgname)"
+  peacock_tidy
 }
