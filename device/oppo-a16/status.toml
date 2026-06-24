@@ -1,0 +1,57 @@
+# Curated public status for PeacockOS. Powers peacockos.org/devices + the wiki widget.
+# Schema + pipeline: see ../STATUS.md. Values: works | partial | broken | untested.
+# Build/flash geometry lives in device.toml, NOT here.
+#
+# Verified so far: bootloader (MinKernel), PRP recovery (SSH + touch), and boot through to
+# the XFCE desktop with working touch. NOTHING else has been tested -> "untested".
+
+[device]
+codename     = "oppo6765"
+name         = "OPPO A16"
+manufacturer = "OPPO"
+released     = 2021
+type         = "handset"
+
+[hardware]
+chipset      = "MediaTek Helio G35 (MT6765)"
+architecture = "aarch64"
+display      = "720x1600 IPS LCD"                    # TODO confirm
+storage      = "32/64 GB"                            # TODO confirm
+memory       = "3/4 GB"                              # TODO confirm
+
+[software]
+original_android = "Android 11 (ColorOS 11.1)"
+max_android      = "TODO"
+kernel           = "downstream 4.19"
+maturity         = "testing"
+
+[support.basics]
+flashing      = "works"
+recovery      = "works"
+recovery_note = "PRP boots with SSH and touch."
+screen        = "works"
+touch         = "works"
+battery       = "untested"
+usb_net       = "untested"
+
+[support.multimedia]
+accel_3d     = "untested"
+audio        = "untested"
+camera_rear  = "untested"
+camera_front = "untested"
+
+[support.connectivity]
+wifi      = "untested"
+bluetooth = "untested"
+gps       = "untested"
+
+[support.modem]
+calls = "untested"
+sms   = "untested"
+data  = "untested"
+
+[support.sensors]
+accelerometer = "untested"
+ambient_light = "untested"
+proximity     = "untested"
+gyroscope     = "untested"

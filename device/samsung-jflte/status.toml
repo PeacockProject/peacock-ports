@@ -1,0 +1,57 @@
+# Curated public status for PeacockOS. Powers peacockos.org/devices + the wiki widget.
+# Schema + pipeline: see ../STATUS.md. Values: works | partial | broken | untested.
+# Build/flash geometry lives in device.toml, NOT here.
+#
+# Verified so far: bootloader (lk2nd), PRP recovery (SSH + touch), and boot through to
+# the XFCE desktop with working touch. NOTHING else has been tested -> "untested".
+
+[device]
+codename     = "jflte"
+name         = "Samsung Galaxy S4 (Qualcomm)"
+manufacturer = "Samsung"
+released     = 2013
+type         = "handset"
+
+[hardware]
+chipset      = "Qualcomm Snapdragon 600 (APQ8064)"   # TODO confirm (device.toml soc=msm8960)
+architecture = "armv7"
+display      = "1080x1920 Super AMOLED"              # TODO confirm
+storage      = "16/32 GB"                            # TODO confirm
+memory       = "2 GB"                                # TODO confirm
+
+[software]
+original_android = "Android 4.2.2"                   # TODO confirm
+max_android      = "Android 5.0.1"                   # TODO confirm
+kernel           = "TODO"                            # downstream fork — fill in the version
+maturity         = "testing"
+
+[support.basics]
+flashing      = "works"
+recovery      = "works"
+recovery_note = "PRP boots with SSH and touch."
+screen        = "works"
+touch         = "works"
+battery       = "untested"
+usb_net       = "untested"
+
+[support.multimedia]
+accel_3d     = "untested"
+audio        = "untested"
+camera_rear  = "untested"
+camera_front = "untested"
+
+[support.connectivity]
+wifi      = "untested"
+bluetooth = "untested"
+gps       = "untested"
+
+[support.modem]
+calls = "untested"
+sms   = "untested"
+data  = "untested"
+
+[support.sensors]
+accelerometer = "untested"
+ambient_light = "untested"
+proximity     = "untested"
+gyroscope     = "untested"

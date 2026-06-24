@@ -1,0 +1,57 @@
+# Curated public status for PeacockOS. Powers peacockos.org/devices + the wiki widget.
+# Schema + pipeline: see ../STATUS.md. Values: works | partial | broken | untested.
+# Build/flash geometry lives in device.toml, NOT here.
+#
+# Verified so far: bootloader (lk2nd), PRP recovery (SSH + touch), and boot through to
+# the XFCE desktop with working touch. NOTHING else has been tested -> "untested".
+
+[device]
+codename     = "daisy"
+name         = "Xiaomi Mi A2 Lite"
+manufacturer = "Xiaomi"
+released     = 2018
+type         = "handset"
+
+[hardware]
+chipset      = "Qualcomm Snapdragon 625 (MSM8953)"
+architecture = "aarch64"
+display      = "1080x2280 IPS LCD"
+storage      = "32/64 GB"
+memory       = "3/4 GB"
+
+[software]
+original_android = "Android 8.1"
+max_android      = "Android 10"
+kernel           = "TODO"          # downstream fork — fill in the version
+maturity         = "testing"
+
+[support.basics]
+flashing      = "works"
+recovery      = "works"
+recovery_note = "PRP boots with SSH and touch."
+screen        = "works"
+touch         = "works"
+battery       = "untested"
+usb_net       = "untested"
+
+[support.multimedia]
+accel_3d     = "untested"
+audio        = "untested"
+camera_rear  = "untested"
+camera_front = "untested"
+
+[support.connectivity]
+wifi      = "untested"
+bluetooth = "untested"
+gps       = "untested"
+
+[support.modem]
+calls = "untested"
+sms   = "untested"
+data  = "untested"
+
+[support.sensors]
+accelerometer = "untested"
+ambient_light = "untested"
+proximity     = "untested"
+gyroscope     = "untested"

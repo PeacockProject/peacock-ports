@@ -1,0 +1,42 @@
+# Curated public status for PeacockOS. Powers peacockos.org/devices + the wiki widget.
+# Schema + pipeline: see ../STATUS.md. Values: works | partial | broken | untested.
+# Virtual test target. Verified: boots PeacockOS + PRP (GRUB dual-entry), display and
+# input. Hardware features below were not exercised -> "untested".
+
+[device]
+codename     = "qemu-x86_64"
+name         = "QEMU x86_64"
+manufacturer = "QEMU"
+released     = 0
+type         = "vm"
+
+[hardware]
+chipset      = "QEMU / virtio (UEFI)"
+architecture = "x86_64"
+display      = "virtual framebuffer"
+storage      = "virtual disk"
+memory       = "host-allocated"
+
+[software]
+original_android = "n/a"
+kernel           = "TODO"          # the PeacockOS x86_64 kernel version
+maturity         = "testing"
+
+[support.basics]
+flashing      = "works"
+flashing_note = "Boots straight in QEMU; no flashing step."
+recovery      = "works"
+recovery_note = "PRP boots in QEMU via the GRUB dual-entry."
+screen        = "works"
+touch         = "works"
+touch_note    = "Mouse/touch passthrough from the host."
+battery       = "untested"
+usb_net       = "untested"
+
+[support.multimedia]
+accel_3d     = "untested"
+audio        = "untested"
+
+[support.connectivity]
+wifi      = "untested"
+bluetooth = "untested"
