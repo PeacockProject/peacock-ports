@@ -20,6 +20,6 @@ layout = "system"
 source = "https://github.com/PeacockProject/MinKernel/archive/refs/heads/master.tar.gz"
 checksum = ""
 type = "bootloader"
-build_deps = ["base-devel", "clang", "lld", "python", "gzip", "coreutils"]
+build_deps = ["base-devel", "clang", "lld", "llvm", "android-tools", "python", "gzip", "coreutils"]
 # Build via the bootloader type (lib/build/bootloader.sh); ./build.sh sets the
 # make target + output image.
