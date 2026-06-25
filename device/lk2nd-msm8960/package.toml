@@ -1,0 +1,25 @@
+# lk2nd secondary bootloader for all msm8960 devices. The SoC-wide
+# `lk2nd-msm8960` make target auto-detects the specific device at runtime via
+# device-tree probing, so ONE package serves every msm8960 phone. Image installs
+# at /usr/share/peacock/bootloaders/lk2nd-msm8960.img; the post-install hook
+# flashes it to the boot partition PRP resolves (PEACOCK_BOOT_DEV). Device ports
+# (device-<codename>) depend on this by SoC.
+
+[package]
+name = "lk2nd-msm8960"
+version = "0.0.9075"
+description = "lk2nd secondary bootloader for msm8960 devices (DT-probed at runtime); flashes on install via post-install hook"
+
+[install]
+layout = "system"
+
+[build]
+source = "https://github.com/PeacockProject/lk2nd_peacock/archive/refs/heads/master.tar.gz"
+checksum = ""
+type = "bootloader"
+build_deps = ["base-devel", "dtc", "python", "coreutils"]
+# Bare-metal ARM firmware: always cross-compiled (arm-none-eabi via c-toolchain).
+use_qemu = false
+target_arch = "armv7h"
+triple = "arm-none-eabi"
+capabilities = ["c-toolchain"]

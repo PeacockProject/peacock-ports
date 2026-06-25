@@ -2,7 +2,7 @@
 name = "device-xiaomi-daisy"
 version = "1.0.0"
 description = "Xiaomi Mi A2 Lite device package"
-depends = ["linux-xiaomi-daisy", "firmware-xiaomi-daisy", "firmware-qcom-adreno-a530", "lk2nd-xiaomi-daisy"]
+depends = ["linux-xiaomi-daisy", "firmware-xiaomi-daisy", "firmware-qcom-adreno-a530", "lk2nd-msm8953"]
 
 # Phase 1 schema migration — defaults to layout = "system"; revisit per-port later.
 [install]
