@@ -23,6 +23,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -40,6 +41,8 @@ const (
 	recoveryMount = "/recovery"
 	bootTimeout   = 90 * time.Second
 	logPrefix     = "peacock-init: "
+	// cloneNewCgroup is CLONE_NEWCGROUP; Go's syscall package doesn't define it.
+	cloneNewCgroup = 0x02000000
 )
 
 // activeFlavorFile / flavorsRoot are vars (not consts) only so tests can point
@@ -64,25 +67,58 @@ var pseudoMounts = []struct{ source, target, fstype string }{
 type outcome int
 
 const (
-	outcomeExit    outcome = iota // the flavor's init exited
-	outcomeTimeout                // it never signaled ready in time
+	outcomeCrash    outcome = iota // init exited unexpectedly (before ready / abnormally) -> recovery
+	outcomeTimeout                 // never signaled ready in time -> recovery
+	outcomeReboot                  // clean reboot requested (systemd container exit 133)
+	outcomePoweroff                // clean poweroff/halt (systemd container exit 0)
 )
 
 func (o outcome) String() string {
-	if o == outcomeTimeout {
+	switch o {
+	case outcomeTimeout:
 		return "boot timeout"
+	case outcomeReboot:
+		return "reboot requested"
+	case outcomePoweroff:
+		return "powered off"
+	default:
+		return "init crashed"
 	}
-	return "init exited"
+}
+
+// systemdExitReboot is the exit code systemd uses, as a container/namespace PID 1,
+// to tell its manager to reboot (EXIT_FORCE_RESTART). A clean poweroff/halt exits 0.
+const systemdExitReboot = 133
+
+// kmsgW, when open, mirrors every log line to /dev/kmsg so peacock-init's
+// decisions (flavor entry, boot outcome, recovery) survive in the kernel ring
+// buffer and show up in `dmesg` even after it drops to PRP recovery. Console
+// output alone is lost on the handoff.
+var kmsgW *os.File
+
+func openKmsg() {
+	if kmsgW != nil {
+		return
+	}
+	if f, err := os.OpenFile("/dev/kmsg", os.O_WRONLY, 0); err == nil {
+		kmsgW = f
+	}
 }
 
 func logf(format string, a ...interface{}) {
-	fmt.Fprintf(os.Stderr, logPrefix+format+"\n", a...)
+	msg := logPrefix + fmt.Sprintf(format, a...) + "\n"
+	fmt.Fprint(os.Stderr, msg)
+	if kmsgW != nil {
+		fmt.Fprint(kmsgW, msg)
+	}
 }
 
 func main() {
+	openKmsg()
 	logf("starting (pid %d)", os.Getpid())
 
 	earlyMounts()
+	openKmsg() // retry once /dev (devtmpfs) is mounted
 
 	flavor := activeFlavor()
 	root := filepath.Join(flavorsRoot, flavor)
@@ -105,11 +141,38 @@ func main() {
 	}
 
 	res, killPID := supervise(child.Process.Pid)
-	logf("flavor %s — entering recovery", res)
-	enterRecovery(killPID)
+	switch res {
+	case outcomeReboot:
+		logf("flavor requested reboot")
+		shutdownDevice(true)
+	case outcomePoweroff:
+		logf("flavor powered off")
+		shutdownDevice(false)
+	default:
+		logf("flavor %s — entering recovery", res)
+		enterRecovery(killPID)
+	}
 
-	// enterRecovery only returns if it couldn't hand off; keep PID 1 alive.
+	// shutdownDevice/enterRecovery only return on failure; keep PID 1 alive.
 	haltLoud("recovery returned")
+}
+
+// shutdownDevice syncs and powers off (or reboots) the real hardware. Called
+// when the flavor's init shut down CLEANLY — peacock-init is the system's PID 1,
+// so it owns the actual reboot()/poweroff. The flavor already stopped its own
+// services before exiting, so a sync + reboot syscall is enough.
+func shutdownDevice(reboot bool) {
+	cmd := syscall.LINUX_REBOOT_CMD_POWER_OFF
+	action := "powering off"
+	if reboot {
+		cmd = syscall.LINUX_REBOOT_CMD_RESTART
+		action = "rebooting"
+	}
+	logf("%s device", action)
+	syscall.Sync()
+	if err := syscall.Reboot(cmd); err != nil {
+		logf("reboot syscall failed: %v", err)
+	}
 }
 
 // earlyMounts mounts the base pseudo-filesystems and makes the base mount tree
@@ -224,6 +287,37 @@ func flavorInitPath(root string) string {
 	return "/sbin/init"
 }
 
+// flavorProfile is how to bring up a flavor's init in its namespace — it differs
+// per init system, so peacock-init dispatches on what the flavor ships rather
+// than assuming one (e.g. systemd). preExec runs post-pivot with the FLAVOR's
+// own tools, just before exec'ing initPath.
+type flavorProfile struct {
+	initPath string // init binary inside the flavor (post-pivot path)
+	cgroupNS bool   // give the flavor its own cgroup namespace
+	preExec  string // shell to run post-pivot before exec (API-filesystem mounts)
+}
+
+// flavorInitProfile selects the entry profile for the init system the flavor
+// ships:
+//   - systemd: mounts its own API filesystems (/proc /sys /dev /run + cgroup2)
+//     and needs a cgroup namespace it owns; pre-mount nothing.
+//   - openrc / sysvinit: its boot scripts expect /proc + /sys already mounted,
+//     and it doesn't need a cgroup namespace.
+// New init systems get a new case here, not changes to the entry mechanics.
+func flavorInitProfile(root string) flavorProfile {
+	if isExec(filepath.Join(root, "usr/lib/systemd/systemd")) ||
+		isExec(filepath.Join(root, "lib/systemd/systemd")) {
+		return flavorProfile{initPath: "/sbin/init", cgroupNS: true, preExec: ""}
+	}
+	pre := "mount -t proc proc /proc 2>/dev/null; mount -t sysfs sys /sys 2>/dev/null; "
+	for _, c := range []string{"/sbin/openrc-init", "/sbin/init", "/usr/bin/openrc-init"} {
+		if isExec(filepath.Join(root, c)) {
+			return flavorProfile{initPath: c, cgroupNS: false, preExec: pre}
+		}
+	}
+	return flavorProfile{initPath: "/sbin/init", cgroupNS: false, preExec: pre}
+}
+
 // startFlavor launches the flavor's own init. On the namespace path the child
 // is PID 1 of a fresh PID+mount namespace (CLONE_NEWPID|CLONE_NEWNS) chrooted
 // into the flavor; a tiny /bin/sh mounts a fresh /proc + /sys before exec'ing
@@ -236,11 +330,37 @@ func startFlavor(root, initPath string, useNS bool) (*exec.Cmd, error) {
 	}
 	var cmd *exec.Cmd
 	if useNS {
-		script := "mount -t proc proc /proc 2>/dev/null; mount -t sysfs sys /sys 2>/dev/null; exec " + initPath
+		// Pick the entry profile for THIS flavor's init system (initPath is the
+		// fallback for the non-namespace path).
+		prof := flavorInitProfile(root)
+
+		// Enter the flavor as PID 1 of a fresh namespace via pivot_root (NOT
+		// chroot): an init's own sandboxing needs / to be a REAL mount point.
+		// systemd in particular runs generators behind `mount --make-rslave /`,
+		// which returns EINVAL on a chroot dir (not a mountpoint) — so systemd
+		// exits before it can boot. pivot_root makes the flavor the real root
+		// mount. Pre-pivot ops use the base's busybox; once pivoted, the flavor's
+		// own init + tools take over. Per-init specifics (cgroup namespace, which
+		// API filesystems to pre-mount) come from the profile.
+		clone := syscall.CLONE_NEWPID | syscall.CLONE_NEWNS
+		if prof.cgroupNS {
+			clone |= cloneNewCgroup
+		}
+		// --rbind (recursive) so the base-owned sub-binds stageFlavorRoot set up
+		// (/peacock /apps /compat /data /dev /run) come along into the pivoted
+		// root — a plain --bind would shadow them with the flavor's empty dirs,
+		// and the flavor-ready signal (/peacock/.flavor-ready) would never reach
+		// the base, timing the flavor out.
+		script := "busybox mount --make-rslave / 2>/dev/null; " +
+			"busybox mount --rbind " + root + " " + root + " 2>/dev/null; " +
+			"cd " + root + " && busybox mkdir -p oldroot && busybox pivot_root . oldroot || exit 71; " +
+			"cd / ; busybox umount -l /oldroot 2>/dev/null || umount -l /oldroot 2>/dev/null; " +
+			"busybox rmdir /oldroot 2>/dev/null || rmdir /oldroot 2>/dev/null; " +
+			prof.preExec +
+			"exec " + prof.initPath
 		cmd = exec.Command("/bin/sh", "-c", script)
 		cmd.SysProcAttr = &syscall.SysProcAttr{
-			Chroot:     root,
-			Cloneflags: syscall.CLONE_NEWPID | syscall.CLONE_NEWNS,
+			Cloneflags: uintptr(clone),
 			Setctty:    true,
 			Setsid:     true,
 		}
@@ -251,7 +371,14 @@ func startFlavor(root, initPath string, useNS bool) (*exec.Cmd, error) {
 	cmd.Dir = "/"
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	// Mirror the flavor init's stderr into /dev/kmsg (in addition to the console)
+	// so early failures land in dmesg and survive a fall-back to recovery. Keep
+	// stdout on the real console so systemd's tty/console handling is unchanged.
+	if kmsgW != nil {
+		cmd.Stderr = io.MultiWriter(os.Stderr, kmsgW)
+	} else {
+		cmd.Stderr = os.Stderr
+	}
 	cmd.Env = env
 	if err := cmd.Start(); err != nil {
 		return nil, err
@@ -284,7 +411,7 @@ func supervise(flavorPID int) (outcome, int) {
 			continue
 		case err == syscall.ECHILD:
 			logf("no children remain")
-			return outcomeExit, 0
+			return outcomeCrash, 0
 		case err != nil:
 			logf("wait4: %v", err)
 			time.Sleep(time.Second)
@@ -297,7 +424,28 @@ func supervise(flavorPID int) (outcome, int) {
 		}
 		if pid == flavorPID {
 			logf("flavor init (pid %d) exited: %s", pid, statusString(ws))
-			return outcomeExit, 0
+			// A flavor init that shut down cleanly is an intentional action, not a
+			// crash. In a PID namespace the kernel turns the flavor init's reboot()
+			// into a SIGNAL to that init: SIGINT for poweroff/halt, SIGHUP for
+			// reboot. Some inits instead exit cleanly (systemd container: 0 =
+			// poweroff, 133 = reboot). Everything else (other signals, exit before
+			// ready) is a crash -> recovery.
+			if ws.Signaled() {
+				switch ws.Signal() {
+				case syscall.SIGINT:
+					return outcomePoweroff, 0
+				case syscall.SIGHUP:
+					return outcomeReboot, 0
+				}
+			} else if ws.Exited() {
+				switch ws.ExitStatus() {
+				case systemdExitReboot:
+					return outcomeReboot, 0
+				case 0:
+					return outcomePoweroff, 0
+				}
+			}
+			return outcomeCrash, 0
 		}
 		// Reaped a host-level orphan; keep going (PID 1 duty).
 	}

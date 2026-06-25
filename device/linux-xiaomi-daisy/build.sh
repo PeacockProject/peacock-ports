@@ -198,16 +198,24 @@ if [ -n "${PRP_KERNEL_CONFIG:-}" ] && [ -f "${PRP_KERNEL_CONFIG}" ]; then
   PRP_TMP="${PRP_TMP:-$(mktemp -d -t prp-build-XXXXXX)}"
   trap 'rm -rf "$PRP_TMP"' EXIT
   if [ -x ./scripts/config ]; then
-    # Eliminate module builds entirely for PRP speed + deterministic bring-up.
-    ./scripts/config --disable MODULES || true
+    # Keep loadable-module support so the wifi stack can ship as .ko on the PRP
+    # ROOTFS and be modprobe'd after it mounts. The boot part only boots into
+    # prp-rootfs; wifi (wcn36xx) lives on the overlay, not the boot kernel.
+    ./scripts/config --enable MODULES || true
 
-    # Symbols modular in the PRP base config flip to =y under MODULES=n
-    # unless forced back off explicitly.
+    # The wifi stack stays modular; every OTHER modular symbol is disabled for a
+    # lean, deterministic recovery kernel.
+    WIFI_KEEP=" WCN36XX MAC80211 CFG80211 QCOM_WCNSS_CTRL RPMSG_CHAR QCOM_WCNSS_PIL QCOM_RPROC_COMMON QCOM_PIL_INFO "
     awk -F= '/^CONFIG_[A-Z0-9_]+=m$/{sub(/^CONFIG_/, "", $1); print $1}' "${PRP_KERNEL_CONFIG}" >"$PRP_TMP"/modules.list
     while IFS= read -r sym; do
       [ -n "$sym" ] || continue
+      case "$WIFI_KEEP" in *" $sym "*) continue ;; esac
       ./scripts/config --disable "$sym" || true
     done <"$PRP_TMP"/modules.list
+    # Force the wifi stack modular (olddefconfig may otherwise drop/flip them).
+    for sym in WCN36XX MAC80211 CFG80211 QCOM_WCNSS_CTRL RPMSG_CHAR QCOM_WCNSS_PIL QCOM_RPROC_COMMON QCOM_PIL_INFO; do
+      ./scripts/config --module "$sym" || true
+    done
 
     # Trim heavy non-recovery stacks that materially increase build time.
     cat >"$PRP_TMP"/trim-force-n.list <<'EOF'
@@ -231,11 +239,6 @@ NFC
 BT
 IP_DCCP
 IP_SCTP
-WIRELESS
-WLAN
-CFG80211
-MAC80211
-RFKILL
 USB_STORAGE
 USB_UAS
 USB_HID
@@ -319,17 +322,35 @@ EOF
   apply_daisy_dts
   yes "" | make $MAKE_ARGS olddefconfig
 
-  # Re-assert touchscreen drivers as built-ins after all defconfig passes.
+  # Re-assert touchscreen drivers as built-ins, then a FINAL module sweep: with
+  # MODULES=y the repeated olddefconfig passes re-default many symbols to =m, so
+  # keep ONLY the wifi stack modular and disable everything else (lean kernel).
   if [ -x ./scripts/config ]; then
     ./scripts/config --enable TOUCHSCREEN_GOODIX || true
     ./scripts/config --enable TOUCHSCREEN_EDT_FT5X06 || true
     ./scripts/config --enable TOUCHSCREEN_FT6236 || true
     yes "" | make $MAKE_ARGS olddefconfig
+    WIFI_KEEP=" WCN36XX MAC80211 CFG80211 QCOM_WCNSS_CTRL RPMSG_CHAR QCOM_WCNSS_PIL QCOM_RPROC_COMMON QCOM_PIL_INFO "
+    awk -F= '/^CONFIG_[A-Z0-9_]+=m$/{sub(/^CONFIG_/,"",$1);print $1}' .config >"$PRP_TMP"/m-final.list
+    while IFS= read -r sym; do
+      [ -n "$sym" ] || continue
+      case "$WIFI_KEEP" in *" $sym "*) continue ;; esac
+      ./scripts/config --disable "$sym" || true
+    done <"$PRP_TMP"/m-final.list
+    for sym in WCN36XX MAC80211 CFG80211 QCOM_WCNSS_CTRL RPMSG_CHAR QCOM_WCNSS_PIL QCOM_RPROC_COMMON QCOM_PIL_INFO; do
+      ./scripts/config --module "$sym" || true
+    done
+    yes "" | make $MAKE_ARGS olddefconfig
   fi
 
-  if grep -q '^CONFIG_MODULES=y' .config 2>/dev/null; then
-    echo "Error: CONFIG_MODULES is still enabled after PRP trim"
-    exit 1
+  # MODULES is intentionally ON now (the wifi stack ships as .ko on the rootfs).
+  # Flag — but don't fail on — any NON-wifi module that survived (deps selected
+  # by built-ins can't be dropped; they're harmless, just note them).
+  STRAY_M=$(awk -F= '/^CONFIG_[A-Z0-9_]+=m$/{sub(/^CONFIG_/,"",$1);print $1}' .config \
+    | grep -ivE '^(WCN36XX|MAC80211|CFG80211|QCOM_WCNSS_CTRL|RPMSG_CHAR|QCOM_WCNSS_PIL|QCOM_RPROC_COMMON|QCOM_PIL_INFO)$' || true)
+  if [ -n "$STRAY_M" ]; then
+    echo "Note: non-wifi modules still =m after PRP trim (harmless):"
+    echo "$STRAY_M" | tr '\n' ' '; echo
   fi
 
   if grep -E '^CONFIG_DRM_PANEL_.*OTM1911.*=y$' .config >"$PRP_TMP"/display-otm1911-clash.list 2>/dev/null; then
@@ -345,6 +366,15 @@ EOF
   fi
   echo "Compiling PRP kernel Image.gz + daisy DTB only..."
   make $MAKE_ARGS -j"$JOBS" Image.gz "$DTB_MAKE_TARGET"
+
+  # Build + stage the (wifi) modules. They are NOT in the boot kernel — they ship
+  # under stage-prp/usr/lib/modules and get modprobe'd from the PRP rootfs after
+  # it mounts. INSTALL_MOD_STRIP keeps them small.
+  echo "Compiling PRP kernel modules (wifi stack)..."
+  make $MAKE_ARGS -j"$JOBS" modules
+  make $MAKE_ARGS modules_install INSTALL_MOD_STRIP=1 INSTALL_MOD_PATH="$PWD/stage-prp/usr"
+  # Drop the build/source symlinks (they point into the build chroot).
+  rm -f stage-prp/usr/lib/modules/*/build stage-prp/usr/lib/modules/*/source 2>/dev/null || true
 
   # PRP-kernel package tree (stage-prp/) — packaged separately as
   # linux-xiaomi-daisy-prp, a build dependency of PRP images only, never

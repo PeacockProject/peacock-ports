@@ -1,0 +1,10 @@
+[package]
+name = "init-systemd"
+version = "0.1.0"
+description = "systemd init metapackage (placeholder — systemd is not feather-packaged yet)."
+
+[install]
+layout = "meta"
+
+[build]
+type = "raw"

@@ -1,0 +1,10 @@
+[package]
+name = "flavor-debian"
+version = "0.1.0"
+description = "Debian base-distro flavor marker."
+
+[install]
+layout = "meta"
+
+[build]
+type = "raw"

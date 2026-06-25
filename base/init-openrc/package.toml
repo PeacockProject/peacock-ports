@@ -1,0 +1,11 @@
+[package]
+name = "init-openrc"
+version = "0.1.0"
+description = "OpenRC init metapackage for PeacockOS."
+depends = ["openrc", "udev-openrc", "dbus-openrc", "elogind-openrc"]
+
+[install]
+layout = "meta"
+
+[build]
+type = "raw"

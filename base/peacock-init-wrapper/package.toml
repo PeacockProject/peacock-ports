@@ -1,0 +1,18 @@
+[package]
+name = "peacock-init-wrapper"
+version = "0.1.0"
+description = "Prebuilt per-arch initramfs /init wrapper. peacock-mkinitfs copies it into the initramfs as /init instead of compiling one with go, so on-device installs (PRP recovery) need no Go toolchain. Installs /usr/lib/peacock/init-wrapper."
+
+[install]
+layout = "system"
+
+[build]
+source = ""
+checksum = ""
+use_qemu = false
+build_deps = ["base-devel", "go"]
+# Built for the consuming device arch via Go cross-compilation (CGO disabled, so
+# no C cross toolchain is used — c-toolchain only resolves $ARCH + satisfies the
+# cross-build guard). The Go source is vendored as aux files (main.go, go.mod).
+capabilities = ["c-toolchain"]
+type = "raw"

@@ -1,0 +1,10 @@
+[package]
+name = "flavor-arch"
+version = "0.1.0"
+description = "Arch base-distro flavor marker (the Arch userland is bootstrapped separately, not via feather yet)."
+
+[install]
+layout = "meta"
+
+[build]
+type = "raw"

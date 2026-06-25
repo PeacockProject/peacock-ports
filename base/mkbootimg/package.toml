@@ -1,0 +1,11 @@
+[package]
+name = "mkbootimg"
+version = "1.0.0"
+description = "osm0sis portable mkbootimg/unpackbootimg — assemble Android boot images on-device (static musl)."
+
+[install]
+layout = "system"
+
+[build]
+type = "raw"
+source = "https://github.com/osm0sis/mkbootimg/archive/refs/heads/master.tar.gz"

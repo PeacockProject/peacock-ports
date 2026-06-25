@@ -1,0 +1,10 @@
+[package]
+name = "flavor-alpine"
+version = "0.1.0"
+description = "Alpine base-distro flavor marker."
+
+[install]
+layout = "meta"
+
+[build]
+type = "raw"
