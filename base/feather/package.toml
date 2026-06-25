@@ -1,0 +1,16 @@
+[package]
+name = "feather"
+version = "0.1.0"
+description = "feather (ftr) — the Peacock package manager + on-device trust keyring. Built fully static against musl via zig cc so PRP and the installer can sync/install/verify packages with no glibc. Lets Peacock build feather with feather."
+
+[install]
+layout = "system"
+
+[build]
+source = "https://github.com/PeacockProject/feather/archive/refs/heads/main.tar.gz"
+checksum = ""
+type = "raw"
+build_deps = ["base-devel", "zig"]
+# c-toolchain only resolves the consuming device's $ARCH; the actual compile is
+# zig cc against musl (static, no glibc cross toolchain) — same as util-linux-prp.
+capabilities = ["c-toolchain"]
