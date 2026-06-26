@@ -14,4 +14,4 @@ type = "autotools"
 build_deps = ["base-devel", "bash", "ncurses"]
 # Standard autotools; legacy --prefix=$(pwd)/stage + cp staging is normalized to
 # /usr via DESTDIR=$pkgdir. Remaining flags are real configure args.
-configure_args = "--disable-makeinstall-chown --disable-makeinstall-setuid --without-systemd --without-systemdsystemunitdir --without-python --disable-bash-completion --disable-rpath --disable-lsfd --enable-static-programs=losetup,blkid,partx,lsblk"
+configure_args = "--disable-makeinstall-chown --disable-makeinstall-setuid --without-systemd --without-systemdsystemunitdir --without-python --disable-bash-completion --disable-rpath --disable-lsfd --enable-static-programs=losetup,blkid,partx,lsblk,mount,umount"

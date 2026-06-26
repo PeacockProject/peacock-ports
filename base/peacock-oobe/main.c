@@ -45,6 +45,12 @@ static int kv(char *s, char **k, char **v) {
 }
 
 int main(int argc, char **argv) {
+	/* peacock-init (PID1, early boot) hands us an empty $PATH, so every child we fork (curl/wget for
+	 * the blueprint fetch, the configure scripts, the netdbg helper) fails with "not found". Set a
+	 * real PATH for ourselves + all children. */
+	if (!getenv("PATH") || !*getenv("PATH"))
+		setenv("PATH", "/usr/bin:/bin:/usr/sbin:/sbin", 1);
+
 	const char *kind = NULL, *root = "/", *base = NULL, *pubkey = NULL, *local = NULL,
 	           *answers_file = NULL;
 	int apply = 0, ui_scale = 0; /* 0 = auto-detect DPI from the panel width */

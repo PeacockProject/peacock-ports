@@ -57,11 +57,23 @@ var (
 var baseOwnedTrees = []string{"/peacock", "/apps", "/compat", "/data"}
 
 // pseudoMounts are the kernel pseudo-filesystems the base itself needs.
-var pseudoMounts = []struct{ source, target, fstype string }{
-	{"proc", "/proc", "proc"},
-	{"sysfs", "/sys", "sysfs"},
-	{"devtmpfs", "/dev", "devtmpfs"},
-	{"tmpfs", "/run", "tmpfs"},
+var pseudoMounts = []struct{ source, target, fstype, data string }{
+	{"proc", "/proc", "proc", ""},
+	{"sysfs", "/sys", "sysfs", ""},
+	{"devtmpfs", "/dev", "devtmpfs", ""},
+	{"tmpfs", "/run", "tmpfs", ""},
+	// /tmp must exist and be world-writable on every boot (udhcpc, the OOBE's
+	// blueprint fetch, build/zig tmp). A fresh tmpfs guarantees it and never accrues cruft.
+	{"tmpfs", "/tmp", "tmpfs", "mode=1777"},
+}
+
+// childEnv is the environment peacock-init hands every child it execs (the OOBE, peacock-net, and
+// the flavor init). PID 1 starts with an empty environment, so without an explicit PATH children
+// can't find mount/ip/wpa_supplicant/udhcpc/curl and every base-context script breaks.
+var childEnv = []string{
+	"PATH=/usr/sbin:/usr/bin:/sbin:/bin",
+	"TERM=linux",
+	"container=peacock",
 }
 
 type outcome int
@@ -180,6 +192,7 @@ func maybeRunOOBE(root string) {
 	}
 	logf("first boot — running OOBE (%s)", oobeBin)
 	cmd := exec.Command(oobeBin, "--root", root)
+	cmd.Env = childEnv
 	cmd.Stdin = os.Stdin
 	cmd.Stdout, cmd.Stderr = kmsgW, kmsgW
 	if err := cmd.Run(); err != nil {
@@ -202,6 +215,7 @@ func bringUpNetwork() {
 	}
 	logf("bringing up saved network")
 	cmd := exec.Command("/sbin/peacock-net")
+	cmd.Env = childEnv
 	cmd.Stdout, cmd.Stderr = kmsgW, kmsgW
 	if err := cmd.Run(); err != nil {
 		logf("peacock-net failed: %v (continuing offline)", err)
@@ -234,7 +248,7 @@ func earlyMounts() {
 			continue
 		}
 		_ = os.MkdirAll(m.target, 0o755)
-		if err := syscall.Mount(m.source, m.target, m.fstype, 0, ""); err != nil {
+		if err := syscall.Mount(m.source, m.target, m.fstype, 0, m.data); err != nil {
 			logf("warning: mount %s on %s: %v", m.fstype, m.target, err)
 		}
 	}
@@ -374,11 +388,7 @@ func flavorInitProfile(root string) flavorProfile {
 // into the flavor; a tiny /bin/sh mounts a fresh /proc + /sys before exec'ing
 // the flavor init. On the chroot fallback it's just a chrooted child.
 func startFlavor(root, initPath string, useNS bool) (*exec.Cmd, error) {
-	env := []string{
-		"PATH=/usr/sbin:/usr/bin:/sbin:/bin",
-		"TERM=linux",
-		"container=peacock",
-	}
+	env := childEnv
 	var cmd *exec.Cmd
 	if useNS {
 		// Pick the entry profile for THIS flavor's init system (initPath is the

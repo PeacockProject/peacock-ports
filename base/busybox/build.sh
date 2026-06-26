@@ -32,6 +32,28 @@ build() {
 
 package() {
   echo "Staging busybox -> /usr/bin/busybox ..."
-  mkdir -p "$pkgdir/usr/bin"
+  mkdir -p "$pkgdir/usr/bin" "$pkgdir/usr/sbin"
   install -m 0755 busybox "$pkgdir/usr/bin/busybox"
+
+  # peacock-busybox-links: create /usr/bin/<applet> -> busybox for every busybox
+  # applet that has NO real binary yet. Must run AFTER the whole base is installed
+  # (so util-linux's real mount/umount/losetup/blkid/lsblk/sfdisk already exist and
+  # are skipped — busybox sfdisk is GPT-broken). Invoked from prp-install (on-device)
+  # and rootfs.go assemblePeacockBase (image build).
+  cat > "$pkgdir/usr/sbin/peacock-busybox-links" <<'EOF'
+#!/bin/sh
+# Link busybox applets that lack a real binary. Idempotent; never clobbers real tools.
+bb=/usr/bin/busybox
+[ -x "$bb" ] || bb=$(command -v busybox) || exit 0
+"$bb" --list 2>/dev/null | while IFS= read -r app; do
+  case "$app" in ""|busybox) continue ;; esac
+  found=0
+  for d in /usr/sbin /usr/bin /sbin /bin; do
+    [ -e "$d/$app" ] && { found=1; break; }
+  done
+  [ "$found" = 0 ] && "$bb" ln -sf /usr/bin/busybox "/usr/bin/$app"
+done
+exit 0
+EOF
+  chmod 0755 "$pkgdir/usr/sbin/peacock-busybox-links"
 }

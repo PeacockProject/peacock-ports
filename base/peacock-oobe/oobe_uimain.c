@@ -10,6 +10,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include <linux/input.h>
 
 #define LV_CONF_INCLUDE_SIMPLE 1
 #include "lvgl/lvgl.h"
@@ -29,9 +32,20 @@ extern int evdev_root_x;
 extern int evdev_root_y;
 static void evdev_read_scaled(lv_indev_drv_t *drv, lv_indev_data_t *data) {
     evdev_read(drv, data);
+    int raw_x = evdev_root_x, raw_y = evdev_root_y;
     if(g_touch_div > 1) {
         data->point.x = (lv_coord_t)(evdev_root_x / g_touch_div);
         data->point.y = (lv_coord_t)(evdev_root_y / g_touch_div);
+    }
+    // DEBUG: log on ANY change (state or raw coords) — shows whether event2 emits touch events at
+    // all in the base (vs PRP). If nothing logs while tapping, the device isn't producing events.
+    static int dbg_n = 0, pstate = -1, px = -999999, py = -999999;
+    if(dbg_n < 40 && ((int)data->state != pstate || raw_x != px || raw_y != py)) {
+        FILE *f = fopen("/peacock/etc/oobe/touch-debug.log", "a");
+        if(f) { fprintf(f, "ev%d state=%d raw=(%d,%d) point=(%d,%d) div=%d\n",
+                        dbg_n, (int)data->state, raw_x, raw_y, (int)data->point.x, (int)data->point.y, g_touch_div);
+                fflush(f); fsync(fileno(f)); fclose(f); }
+        pstate = (int)data->state; px = raw_x; py = raw_y; dbg_n++;
     }
 }
 
@@ -50,6 +64,9 @@ static char *read_trim(const char *path) {
 int oobe_run_ui(const char *root, int scale, const char *fbdev) {
     signal(SIGINT, on_sig);
     signal(SIGTERM, on_sig);
+    // DEBUG: bring up USB RNDIS + ssh on the live system (if the helper is present) so we can
+    // diagnose without rebooting to PRP. Backgrounded; harmless if absent.
+    if(access("/sbin/peacock-netdbg", X_OK) == 0) system("/sbin/peacock-netdbg &");
     if(!fbdev || !*fbdev) fbdev = "/dev/fb0";
 
     // Active flavor (for the title + the blueprint dir): the active-flavor file, else basename(root).
@@ -112,7 +129,10 @@ int oobe_run_ui(const char *root, int scale, const char *fbdev) {
         if(!ok) usleep(200000);
     }
     if(ok) {
-        lv_indev_drv_t indev;
+        // MUST be static: LVGL v8's lv_indev_drv_register stores a POINTER to this driver, not a
+        // copy. A block/stack local would dangle the moment we leave this scope, and LVGL would
+        // never call read_cb — which is exactly why touch was dead while rendering worked.
+        static lv_indev_drv_t indev;
         lv_indev_drv_init(&indev);
         indev.type = LV_INDEV_TYPE_POINTER;
         indev.read_cb = evdev_read_scaled;
@@ -120,6 +140,29 @@ int oobe_run_ui(const char *root, int scale, const char *fbdev) {
         fprintf(stderr, "peacock-oobe: touch input %s\n", ev);
     } else {
         fprintf(stderr, "peacock-oobe: no touch input\n");
+    }
+
+    // DEBUG: snapshot the input topology + the pick so we can diagnose touch after a boot.
+    FILE *d = fopen("/peacock/etc/oobe/touch-debug.log", "w");
+    if(d) {
+        fprintf(d, "panel %ux%u factor %d logical %dx%d touch_div %d\npicked: %s\n",
+                fb.width, fb.height, factor, sw, sh, g_touch_div, ok ? ev : "NONE");
+        for(int i = 0; i < 16; i++) {
+            char p[64]; snprintf(p, sizeof p, "/dev/input/event%d", i);
+            int fd = open(p, O_RDONLY | O_NONBLOCK);
+            if(fd < 0) continue;
+            char nm[128] = "";
+            unsigned long evb = 0, absb[2] = {0}, prop = 0;
+            ioctl(fd, EVIOCGNAME(sizeof nm), nm);
+            ioctl(fd, EVIOCGBIT(0, sizeof evb), &evb);
+            ioctl(fd, EVIOCGBIT(EV_ABS, sizeof absb), absb);
+#ifdef EVIOCGPROP
+            ioctl(fd, EVIOCGPROP(sizeof prop), &prop);
+#endif
+            close(fd);
+            fprintf(d, "  event%d ev=%lx abs=%lx prop=%lx name=%s\n", i, evb, absb[0], prop, nm);
+        }
+        fflush(d); fsync(fileno(d)); fclose(d); sync(); // survive an unclean reboot
     }
 
     oobe_cfg_t cfg = {0};

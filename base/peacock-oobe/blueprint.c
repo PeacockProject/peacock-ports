@@ -432,8 +432,9 @@ int bp_run_stage_action(const bp_stage *st, const bp_answers *a, const char *roo
 static int fetch_url(const char *url, const char *out) {
 	pid_t pid = fork();
 	if (pid == 0) {
-		execlp("curl", "curl", "-fsSL", "--retry", "2", "-o", out, url, (char *)NULL);
-		execlp("wget", "wget", "-q", "-O", out, url, (char *)NULL);
+		execlp("curl", "curl", "-fsSL", "--retry", "2", "--connect-timeout", "5", "--max-time", "20",
+		       "-o", out, url, (char *)NULL);
+		execlp("wget", "wget", "-q", "-T", "10", "-O", out, url, (char *)NULL);
 		_exit(127);
 	}
 	if (pid < 0) return -1;

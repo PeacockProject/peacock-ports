@@ -25,11 +25,13 @@ build() {
   [ -d "$LVGL_DIR" ] || { echo "lvgl source missing"; exit 1; }
   [ -d "$LVD_DIR" ]  || { echo "lv_drivers source missing"; exit 1; }
 
-  # lv_drivers v8.3 evdev marks press only when tracking_id == 0; real panels use non-zero IDs.
-  # Treat any non-negative tracking_id as pressed (same fix as PRP's build-gui.sh).
-  if command -v perl >/dev/null 2>&1; then
-    perl -0pi -e 's/else if\(in\.value == 0\)\s*evdev_button = LV_INDEV_STATE_PR;/else if(in.value != -1) evdev_button = LV_INDEV_STATE_PR;/' "$LVD_DIR/indev/evdev.c" || true
-  fi
+  # lv_drivers v8.3 evdev marks press only when ABS_MT_TRACKING_ID == 0; real panels (e.g. daisy's
+  # Goodix) use non-zero IDs, so touch never registers a press. Treat any non-(-1) id as pressed
+  # (same fix as PRP's build-gui.sh). Single-line sed (robust, no perl dep) + HARD VERIFY: the build
+  # fails loudly if the patch didn't land, so we never ship a kernel-touch-dead binary again.
+  sed -i 's/else if(in\.value == 0)/else if(in.value != -1)/' "$LVD_DIR/indev/evdev.c"
+  grep -q 'else if(in.value != -1)' "$LVD_DIR/indev/evdev.c" \
+    || { echo "FATAL: evdev tracking_id patch did not apply"; exit 1; }
 
   # Include tree so third-party code can include "lvgl/lvgl.h" + "lv_drivers/...".
   INC=include

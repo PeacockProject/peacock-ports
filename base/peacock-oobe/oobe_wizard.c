@@ -54,6 +54,14 @@ static struct {
     pid_t apply_pid;
     char ibuf[512];
     size_t ilen;
+
+    // background configure.toml fetch (NEVER block the LVGL thread on the network)
+    pid_t fetch_pid;
+    lv_timer_t *fetch_timer;
+    // Whether the configure blueprint was actually fetched+parsed. If it never loaded (offline,
+    // fetch failed) the OOBE accomplished nothing real, so we exit non-zero → peacock-init does NOT
+    // mark .done and re-runs the OOBE next boot instead of bricking into an unconfigured flavor.
+    int bp_ready;
 } W;
 
 static int clampi(int v, int lo, int hi) { return v < lo ? lo : (v > hi ? hi : v); }
@@ -65,6 +73,8 @@ static void render_page(void);
 
 static void wizard_close(void) {
     if(W.prog_timer) { lv_timer_del(W.prog_timer); W.prog_timer = NULL; }
+    if(W.fetch_timer) { lv_timer_del(W.fetch_timer); W.fetch_timer = NULL; }
+    if(W.fetch_pid > 0) { int st; kill(W.fetch_pid, SIGTERM); waitpid(W.fetch_pid, &st, 0); W.fetch_pid = 0; }
     if(W.apply_fd >= 0) { close(W.apply_fd); W.apply_fd = -1; }
     if(W.apply_pid > 0) { int st; kill(W.apply_pid, SIGTERM); waitpid(W.apply_pid, &st, 0); W.apply_pid = 0; }
     if(W.root) { lv_obj_del(W.root); W.root = NULL; }
@@ -436,7 +446,15 @@ static void render_progress(void) {
     }
 }
 
-static void done_close_cb(lv_event_t *e) { (void)e; wizard_close(); exit(0); }
+static void done_close_cb(lv_event_t *e) {
+    (void)e;
+    int ok = W.bp_ready; /* capture before wizard_close() wipes W */
+    wizard_close();
+    /* EX_TEMPFAIL (75): the configure blueprint never loaded (offline / fetch failed), so nothing
+     * was actually set up — exit non-zero so peacock-init does NOT write .done and re-runs the OOBE
+     * next boot instead of bricking into an unconfigured flavor. */
+    exit(ok ? 0 : 75);
+}
 
 static void render_done(void) {
     lv_obj_set_flex_align(W.content, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
@@ -509,26 +527,46 @@ static void render_page(void) {
     style_btn(W.next, W.next_lbl, W.page == PAGE_CONFIRM());
 }
 
+/* Poll the background configure.toml fetch (started in prp_oobe_show). Loads the blueprint + stage
+ * count when the child finishes; never blocks. Re-renders if still on the welcome so the page math
+ * picks up the now-known stage count. */
+static void fetch_poll_cb(lv_timer_t *t) {
+    if(W.fetch_pid <= 0) { lv_timer_del(t); W.fetch_timer = NULL; return; }
+    int st;
+    if(waitpid(W.fetch_pid, &st, WNOHANG) != W.fetch_pid) return; /* still fetching */
+    lv_timer_del(t); W.fetch_timer = NULL; W.fetch_pid = 0;
+    if(WIFEXITED(st) && WEXITSTATUS(st) == 0) {
+        char err[256];
+        W.bp = bp_load("/tmp/oobe-configure.toml", err, sizeof err);
+        if(W.bp) { W.n_stages = (int)bp_phase_order(W.bp, BP_PHASE_OOBE, W.ord); W.bp_ready = 1; }
+    }
+    if(W.page == 0) render_page();
+}
+
 void prp_oobe_show(const oobe_cfg_t *cfg) {
     if(W.root) return;
     memset(&W, 0, sizeof W);
     W.cfg = *cfg;
 
-    /* Load the configure.toml: a local copy (sim/offline) or fetched+verified from genmirror. */
-    const char *bp_path = NULL;
-    char localbuf[640];
+    /* Load the configure.toml. Local copy (sim/offline) loads inline (fast, no network). A remote
+     * fetch runs in a CHILD process so the LVGL thread NEVER blocks on the network — the welcome
+     * renders instantly and a poll timer loads the blueprint when the child finishes. With no
+     * network the child just fails and the OOBE stays fully responsive (stages stay empty). */
     if(cfg->blueprint_local) {
+        char localbuf[640], err[256];
         snprintf(localbuf, sizeof localbuf, "%s/configure.toml", cfg->blueprint_local);
-        bp_path = localbuf;
+        W.bp = bp_load(localbuf, err, sizeof err);
     } else if(cfg->blueprint_base_url && cfg->blueprint_pubkey) {
-        char url[700], err[256];
-        snprintf(url, sizeof url, "%s/configure.toml", cfg->blueprint_base_url);
-        if(bp_fetch_verify(url, cfg->blueprint_pubkey, "/tmp/oobe-configure.toml", err, sizeof err) == 0)
-            bp_path = "/tmp/oobe-configure.toml";
+        W.fetch_pid = fork();
+        if(W.fetch_pid == 0) {
+            char url[700], err[256];
+            snprintf(url, sizeof url, "%s/configure.toml", cfg->blueprint_base_url);
+            _exit(bp_fetch_verify(url, cfg->blueprint_pubkey, "/tmp/oobe-configure.toml", err, sizeof err) == 0 ? 0 : 1);
+        }
     }
-    if(bp_path) { char err[256]; W.bp = bp_load(bp_path, err, sizeof err); }
     W.ans = bp_answers_load("");
     W.n_stages = W.bp ? (int)bp_phase_order(W.bp, BP_PHASE_OOBE, W.ord) : 0;
+    W.bp_ready = (W.bp != NULL); /* local copy is ready now; remote is set by fetch_poll_cb */
 
     const int w = cfg->screen_w, h = cfg->screen_h;
     const int scale = clampi(cfg->scale_pct, 50, 200);
@@ -615,4 +653,7 @@ void prp_oobe_show(const oobe_cfg_t *cfg) {
 
     W.page = 0;
     render_page();
+
+    // Poll the background fetch (if any) without ever blocking the UI thread.
+    if(W.fetch_pid > 0) W.fetch_timer = lv_timer_create(fetch_poll_cb, 200, NULL);
 }

@@ -136,6 +136,14 @@ if [ -x ./scripts/config ]; then
   do
     ./scripts/config --disable "$sym" || true
   done
+  # Force the wifi stack to build as modules. The full config has them =m, but a bare
+  # olddefconfig drops them when their deps aren't pre-satisfied — exactly why the OS kernel
+  # feather shipped ZERO .ko (no wlan0 on the base). Force the whole chain HERE, before the
+  # single resolving olddefconfig below, so the subsystem stays on through resolution (mirrors
+  # PASS 2). No extra olddefconfig — the existing one resolves everything.
+  for sym in WCN36XX MAC80211 CFG80211 QCOM_WCNSS_CTRL RPMSG_CHAR QCOM_WCNSS_PIL QCOM_RPROC_COMMON QCOM_PIL_INFO; do
+    ./scripts/config --module "$sym" || true
+  done
 fi
 
 apply_daisy_dts
@@ -153,13 +161,22 @@ fi
 # Full-kernel package tree (installed into the OS rootfs by ftr):
 #   $pkgdir/boot/zImage            kernel image (Image.gz + dtb)
 #   $pkgdir/boot/dtbs/qcom/...      device tree
-#   $pkgdir/usr/lib/modules/...     modules
+#   $pkgdir/lib/modules/...         modules (busybox modprobe + depmod -b default path)
 echo "Compiling modules..."
 rm -rf "$pkgdir" stage-prp
 mkdir -p "$pkgdir/boot"
 if grep -q "^CONFIG_MODULES=y" .config 2>/dev/null; then
   make $MAKE_ARGS -j"$JOBS" modules
-  make $MAKE_ARGS modules_install INSTALL_MOD_PATH="$pkgdir/usr"
+  # Install to /lib/modules (NOT /usr/lib/modules): the base's busybox modprobe and the
+  # install-time `depmod -b <root>` both default to <root>/lib/modules. STRIP keeps it small.
+  make $MAKE_ARGS modules_install INSTALL_MOD_STRIP=1 INSTALL_MOD_PATH="$pkgdir"
+  # Drop the build/source symlinks (they dangle into the build chroot + confuse depmod).
+  rm -f "$pkgdir"/lib/modules/*/build "$pkgdir"/lib/modules/*/source 2>/dev/null || true
+  # Hard gate against the silent "0 .ko" regression: the wifi driver MUST be present.
+  if ! ls "$pkgdir"/lib/modules/*/kernel/drivers/net/wireless/ath/wcn36xx/wcn36xx.ko* >/dev/null 2>&1; then
+    echo "FATAL: wcn36xx.ko missing from the OS kernel package — wifi would be dead on the base"
+    exit 1
+  fi
 fi
 
 stage_daisy_dtb
@@ -186,8 +203,22 @@ cp .config "$pkgdir/boot/config"
 if [ -n "${PRP_KERNEL_CONFIG:-}" ] && [ -f "${PRP_KERNEL_CONFIG}" ]; then
   echo "=== PASS 2: PRP daisy kernel (${PRP_KERNEL_CONFIG}) ==="
   # Clean the tree so the very different config doesn't reuse pass-1 objects.
-  # Keeps source (incl. the DTS fixups above) and our $pkgdir/ dir.
+  # Keeps source (incl. the DTS fixups above) and our $pkgdir/ dir — EXCEPT `make clean`
+  # find-deletes every *.ko/*.dtb in the tree, and $pkgdir is ./stage INSIDE the tree, so it
+  # wipes the modules PASS 1 just staged into ./stage/lib/modules. That was the real reason the
+  # OS kernel feather shipped ZERO .ko (no wlan0 on the base). Move them OUTSIDE the tree across
+  # the clean, then restore. (The DTB hits the same trap and is re-staged at the end of build().)
+  MODSAVE=""
+  if [ -d "$pkgdir/lib/modules" ]; then
+    MODSAVE="$(mktemp -d -t kmod-save-XXXXXX)"
+    mv "$pkgdir/lib/modules" "$MODSAVE/modules"
+  fi
   make $MAKE_ARGS clean || true
+  if [ -n "$MODSAVE" ]; then
+    mkdir -p "$pkgdir/lib"
+    mv "$MODSAVE/modules" "$pkgdir/lib/modules"
+    rmdir "$MODSAVE" 2>/dev/null || true
+  fi
 
   cp "${PRP_KERNEL_CONFIG}" .config
   sanitize_config
@@ -399,6 +430,14 @@ fi
 # this the feather ships an empty dtbs/, extlinux gets no `fdt`, and the device
 # dies at boot with "No DTB configured".
 stage_daisy_dtb
+
+# Final gate: the wifi modules MUST survive into the package. PASS 2's `make clean` wiped them
+# before (the move-aside above fixes that) — fail loudly rather than silently shipping a base with
+# no wlan0 again.
+if ! ls "$pkgdir"/lib/modules/*/kernel/drivers/net/wireless/ath/wcn36xx/wcn36xx.ko* >/dev/null 2>&1; then
+  echo "FATAL: wcn36xx.ko missing from \$pkgdir after PASS 2 — wifi would be dead on the base"
+  exit 1
+fi
 }
 
 package() { :; }

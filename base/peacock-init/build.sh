@@ -27,4 +27,19 @@ package() {
   cp peacock-init "$pkgdir/sbin/peacock-init"
   # /sbin/init -> peacock-init so the initramfs switch_root hands off to us.
   ln -sf peacock-init "$pkgdir/sbin/init"
+
+  # Base filesystem skeleton. peacock-base is a meta package (no files), so the
+  # persistent base dirs have to ship inside a real dependency feather — peacock-init
+  # is always installed by both the image builder and on-device ftr, so both paths
+  # get a sane root. (/tmp is mounted as tmpfs at boot by peacock-init; the dir here
+  # is just a fallback mountpoint.)
+  mkdir -p "$pkgdir/etc" "$pkgdir/root" "$pkgdir/home" \
+           "$pkgdir/var/tmp" "$pkgdir/var/lib" "$pkgdir/run" \
+           "$pkgdir/bin" "$pkgdir/tmp"
+  # NOTE: keep /root at the default 0755 here — a 0700 dir owned by the build user blocks the
+  # feather packager (a different uid) from reading it ("permission denied"). The flavor ships its
+  # own correctly-permissioned /root; the base /root is just a fallback home.
+  chmod 1777 "$pkgdir/var/tmp" "$pkgdir/tmp"
+  # /var/run -> /run: peacock-net puts the wpa_supplicant control socket here.
+  ln -sf /run "$pkgdir/var/run"
 }
