@@ -22,6 +22,15 @@ title = "Name this device"
   validate = "^[a-z0-9][a-z0-9-]{0,62}$"
   required = true
 
+  # init system is per-flavor (Arch supports both) and drives which init-<init> package PRP
+  # installs — declared here so it's scriptable, not hardcoded in the installer.
+  [[stage.field]]
+  key     = "init"
+  type    = "dropdown"
+  label   = "INIT SYSTEM"
+  options = ["openrc","systemd"]
+  default = "openrc"
+
 action = """
 bp_log "hostname -> $ANS_host"
 printf '%s\\n' "$ANS_host" > "$ROOT/etc/hostname"
