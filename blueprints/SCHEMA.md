@@ -1,18 +1,25 @@
 # Blueprint schema
 
-A **blueprint** is a declarative description of how a PeacockOS **flavor** is installed and
-configured. One blueprint per flavor (`arch.toml`, `alpine.toml`, `debian.toml`), served from
-genmirror under `blueprints/<channel>/`. The on-device **blueprint runner** (shared by the PRP
-installer and the base first-boot OOBE) parses it, renders a screen per stage from the declared
-fields (a *polymorphic UI* — the UI is whatever the TOML says), collects answers, and runs each
-stage's shell **action**.
+A **blueprint** is a declarative TOML of stages — each a UI spec + a shell **action** — served from
+genmirror under `blueprints/<channel>/` and executed by the shared **blueprint runner**
+(`bp_run_stage_action`). Nothing about installing or configuring PeacockOS is baked into the
+recovery image or the builder; it's all served, so a change is a one-file re-upload — no PRP/image
+rebuild.
 
-The same actions run in two places via the `run_in_target` shim (`chroot "$ROOT" "$@"`):
-- **build time** — the `peacock` builder, `ROOT` = the flavor rootfs being built;
-- **first boot** — the base OOBE, `ROOT` = `/flavors/<active>`.
+## Two kinds (`kind`)
 
-So a blueprint is the **single source of truth** for flavor config. Updating a flavor's setup is
-re-uploading one signed `.toml` to genmirror — no image or recovery rebuild.
+| file | `kind` | run by | `ROOT` | purpose |
+|------|--------|--------|--------|---------|
+| `install.toml` (global) | `install` | **PRP** | the target mount | base-install **instructions** (package sets, active-flavor). PRP still owns the device-specific *mechanism* — partitioning, loop setup, mkfs, bootloader staging. |
+| `<flavor>.toml` (per flavor) | `oobe` | **base OOBE** (first boot) + the **builder** (build time) | `/flavors/<active>` (boot) or the rootfs being built | first-boot setup: account, hostname, desktop, DM, timezone — the polymorphic UI the user fills in. |
+| `index.toml` | — | PRP | — | lists available flavors (`[[flavor]]` id/name) so the installer's flavor list is served, not hardcoded. |
+
+The same `<flavor>.toml` actions run in two places via the `run_in_target` shim
+(`chroot "$ROOT" "$@"`) — the builder at build time and the base OOBE on first boot — so it's the
+**single source of truth** for flavor config (no duplicate `rootfs.go` heredocs).
+
+The runner renders a screen per stage from the declared fields (a *polymorphic UI* — the UI is
+whatever the TOML says), collects answers, and runs each stage's action.
 
 ## File layout (per flavor)
 

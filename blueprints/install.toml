@@ -1,0 +1,39 @@
+# Base-install blueprint — the PeacockOS base install INSTRUCTIONS, served from genmirror so the
+# install flow updates without a PRP rebuild. Global (one install for all flavors); the chosen
+# flavor/init/device are passed in by PRP as $ANS_flavor / $ANS_init / $ANS_device, and the target
+# mount as $ANS_target. The device-specific MECHANISM (nested-GPT partitioning, loop setup, mkfs,
+# bootloader staging) stays in PRP — these stages are the package + config instructions that change
+# between releases (add a base package, change a default) and shouldn't require reflashing recovery.
+#
+# Run by the shared headless blueprint runner (bp_run_stage_action): PRP fetches+verifies this,
+# partitions/mounts the target, then runs these install-phase stages, then stages the bootloader.
+
+schema = 1
+kind   = "install"
+title  = "PeacockOS base install"
+
+[[stage]]
+id    = "base"
+phase = "install"
+title = "Installing the Peacock base"
+action = """
+bp_progress 30
+bp_log "installing peacock-base + device-$ANS_device + init-$ANS_init"
+ftr install --root "$ANS_target" peacock-base "device-$ANS_device" "init-$ANS_init" \
+	|| bp_fail "base package install failed (genmirror reachable?)"
+"""
+
+[[stage]]
+id       = "flavor"
+phase    = "install"
+title    = "Installing the flavor"
+requires = ["base"]
+action = """
+bp_progress 70
+bp_log "installing flavor-$ANS_flavor-base"
+ftr install --root "$ANS_target/flavors/$ANS_flavor" "flavor-$ANS_flavor-base" \
+	|| bp_fail "flavor base install failed"
+# Record the active flavor so the base boots it (and the OOBE knows which blueprint to fetch).
+mkdir -p "$ANS_target/peacock/etc"
+printf '%s\\n' "$ANS_flavor" > "$ANS_target/peacock/etc/active-flavor"
+"""
