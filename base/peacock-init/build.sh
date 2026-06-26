@@ -42,4 +42,16 @@ package() {
   chmod 1777 "$pkgdir/var/tmp" "$pkgdir/tmp"
   # /var/run -> /run: peacock-net puts the wpa_supplicant control socket here.
   ln -sf /run "$pkgdir/var/run"
+
+  # Minimal account database. The base is the most fundamental layer and MUST have at least a root
+  # user, or anything that calls getpwnam (dropbear/sshd, login, su, the OOBE's run_in_target) has
+  # no accounts to resolve and fails. root is LOCKED by default ("!" in shadow); the dev-only
+  # peacock-netdbg helper blanks it for headless ssh. The flavor has its own full passwd at
+  # /flavors/<name>; this is just the base's own thin account DB.
+  printf 'root:x:0:0:root:/root:/bin/sh\n' > "$pkgdir/etc/passwd"
+  printf 'root:!:19000:0:99999:7:::\n'     > "$pkgdir/etc/shadow"
+  printf 'root:x:0:\n'                      > "$pkgdir/etc/group"
+  # NOTE: leave these world-readable (0644). A 0600 shadow can't be read by the feather packager
+  # (a different uid -> "permission denied"), same trap as /root above. Safe here: the base shadow
+  # holds only a locked root with no password hash, so there's nothing sensitive to leak.
 }
