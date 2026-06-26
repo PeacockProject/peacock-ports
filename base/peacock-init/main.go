@@ -134,6 +134,8 @@ func main() {
 		fatalf("staging flavor root: %v", err)
 	}
 
+	maybeRunOOBE(root) // first boot: configure the freshly-installed flavor before entering it
+
 	initPath := flavorInitPath(root)
 	_ = os.Remove(readyFile) // clear any stale ready marker
 	logf("entering flavor (init=%s) via %s", initPath, entryMode(useNS))
@@ -157,6 +159,36 @@ func main() {
 
 	// shutdownDevice/enterRecovery only return on failure; keep PID 1 alive.
 	haltLoud("recovery returned")
+}
+
+// oobeBin / oobeMarker: the first-boot setup binary and the "already configured" marker.
+const oobeBin = "/sbin/peacock-oobe"
+const oobeMarker = "/peacock/etc/oobe/.done"
+
+// maybeRunOOBE runs the first-boot OOBE once, BEFORE the flavor's own init starts — it configures
+// the freshly-installed flavor (account, hostname, desktop, timezone, …) by applying the flavor's
+// signed configure blueprint via chroot into `root`. Skipped once oobeMarker exists. Non-fatal: a
+// failed/aborted OOBE leaves no marker, so it re-runs next boot (resuming via the blueprint
+// stage_status), and we enter the flavor regardless. The flavor-ready watchdog only starts after
+// flavor entry, so however long the OOBE (and its DE download) takes, it never trips the timeout.
+func maybeRunOOBE(root string) {
+	if _, err := os.Stat(oobeMarker); err == nil {
+		return // already configured
+	}
+	if _, err := os.Stat(oobeBin); err != nil {
+		return // no OOBE installed (older base) — boot straight in
+	}
+	logf("first boot — running OOBE (%s)", oobeBin)
+	cmd := exec.Command(oobeBin, "--root", root)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout, cmd.Stderr = kmsgW, kmsgW
+	if err := cmd.Run(); err != nil {
+		logf("OOBE did not complete: %v (entering flavor; will retry next boot)", err)
+		return
+	}
+	_ = os.MkdirAll(filepath.Dir(oobeMarker), 0o755)
+	_ = os.WriteFile(oobeMarker, []byte("done\n"), 0o644)
+	logf("OOBE complete")
 }
 
 // bringUpNetwork runs /sbin/peacock-net (the peacock-net package) to connect Wi-Fi from the creds
