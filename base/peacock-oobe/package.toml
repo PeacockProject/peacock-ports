@@ -1,6 +1,6 @@
 [package]
 name = "peacock-oobe"
-version = "0.1.0"
+version = "0.2.0"
 description = "PeacockOS base first-boot OOBE + headless blueprint applier. --apply runs a flavor's signed install/configure blueprint headlessly (fetch+verify TOML + step scripts, verify the base archive digest, run stages), emitting the STEP/PROGRESS/LOG/DONE/ERROR line-protocol; the framebuffer UI mode renders it as a progress bar on first boot. Shares the blueprint engine with the PRP installer."
 
 [install]
@@ -11,4 +11,4 @@ source = ""
 use_qemu = false
 type = "raw"
 capabilities = ["c-toolchain"]
-build_deps = ["base-devel"]
+build_deps = ["base-devel", "curl", "perl"]

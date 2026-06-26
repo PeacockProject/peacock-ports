@@ -24,6 +24,9 @@
 
 #define WORKDIR "/tmp/peacock-oobe-bp"
 
+/* fbdev UI entry (oobe_uimain.c) — runs the first-boot wizard when invoked without --apply. */
+int oobe_run_ui(const char *root, int scale, const char *fbdev);
+
 static void usage(void) {
 	fprintf(stderr,
 	    "usage: peacock-oobe --apply --kind install|oobe --root <path>\n"
@@ -44,7 +47,8 @@ static int kv(char *s, char **k, char **v) {
 int main(int argc, char **argv) {
 	const char *kind = NULL, *root = "/", *base = NULL, *pubkey = NULL, *local = NULL,
 	           *answers_file = NULL;
-	int apply = 0;
+	int apply = 0, ui_scale = 100;
+	const char *ui_fbdev = NULL;
 	char *set_k[64], *set_v[64];
 	size_t n_set = 0;
 	char *sec_k[16], *sec_v[16];
@@ -64,6 +68,10 @@ int main(int argc, char **argv) {
 		} else if (!strcmp(argv[i], "--secret") && i + 1 < argc) {
 			char *k, *v;
 			if (kv(argv[++i], &k, &v) && n_sec < 16) { sec_k[n_sec] = k; sec_v[n_sec] = v; n_sec++; }
+		} else if (!strcmp(argv[i], "--scale") && i + 1 < argc) {
+			ui_scale = atoi(argv[++i]);
+		} else if (!strcmp(argv[i], "--fbdev") && i + 1 < argc) {
+			ui_fbdev = argv[++i];
 		} else {
 			fprintf(stderr, "peacock-oobe: unknown arg %s\n", argv[i]);
 			usage();
@@ -71,7 +79,7 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	if (!apply) { usage(); return 2; } /* UI mode (no --apply) is the P5 framebuffer path, not here */
+	if (!apply) return oobe_run_ui(root, ui_scale, ui_fbdev); /* no --apply: first-boot fbdev UI */
 	if (!kind || (strcmp(kind, "install") && strcmp(kind, "oobe"))) {
 		fprintf(stderr, "peacock-oobe: --kind install|oobe required\n");
 		return 2;
