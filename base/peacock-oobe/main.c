@@ -47,7 +47,7 @@ static int kv(char *s, char **k, char **v) {
 int main(int argc, char **argv) {
 	const char *kind = NULL, *root = "/", *base = NULL, *pubkey = NULL, *local = NULL,
 	           *answers_file = NULL;
-	int apply = 0, ui_scale = 100;
+	int apply = 0, ui_scale = 0; /* 0 = auto-detect DPI from the panel width */
 	const char *ui_fbdev = NULL;
 	char *set_k[64], *set_v[64];
 	size_t n_set = 0;

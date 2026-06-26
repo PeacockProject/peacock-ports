@@ -51,7 +51,7 @@ build() {
     $LVGL_SRCS \
     "$LVD_DIR/indev/evdev.c" \
     prp_fbdev.c pk_serif_30.c pk_serif_44.c pk_mono_16.c pk_mono_20.c \
-    oobe_wizard.c oobe_uimain.c \
+    oobe_wizard.c oobe_uimain.c prp_touch.c \
     blueprint.c toml.c bp_verify.c tweetnacl.c main.c \
     -lm -lpthread \
     -o peacock-oobe

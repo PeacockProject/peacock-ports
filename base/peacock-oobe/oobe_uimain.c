@@ -17,6 +17,7 @@
 
 #include "prp_fbdev.h"
 #include "prp_theme.h"
+#include "prp_touch.h"
 #include "oobe_wizard.h"
 
 static volatile sig_atomic_t g_stop = 0;
@@ -68,7 +69,10 @@ int oobe_run_ui(const char *root, int scale, const char *fbdev) {
     prp_fbdev_clear(&fb, 0x0000);
 
     int sw = fb.width, sh = fb.height;
-    int factor = scale / 100;
+    // DPI upscale: explicit --scale wins; otherwise auto from panel width (peacock-init passes no
+    // scale, and a high-DPI phone panel renders an unreadable, barely-tappable UI at 1x). Mirrors
+    // PRP's logical-render + fbdev upscale. daisy (1080 wide) -> 2x logical 540-wide.
+    int factor = (scale > 0) ? scale / 100 : (fb.width >= 1600 ? 3 : fb.width >= 880 ? 2 : 1);
     if(factor < 1) factor = 1;
     if(factor > 1) {
         sw = (int)fb.width / factor;
@@ -97,14 +101,14 @@ int oobe_run_ui(const char *root, int scale, const char *fbdev) {
     lv_disp_set_bg_color(disp, lv_color_hex(PK_BG));
     lv_disp_set_bg_opa(disp, LV_OPA_COVER);
 
+    // Pick the ACTUAL touchscreen (scored by ABS/MT/BTN_TOUCH/DIRECT/name), not the first event
+    // node — grabbing gpio-keys is why "Get started" couldn't be tapped. Input nodes can appear a
+    // touch after fbdev, so retry briefly.
     evdev_init();
     bool ok = false;
     char ev[64] = {0};
     for(int tries = 0; tries < 30 && !ok; tries++) {
-        for(int i = 0; i < 32 && !ok; i++) {
-            snprintf(ev, sizeof ev, "/dev/input/event%d", i);
-            if(access(ev, R_OK) == 0 && evdev_set_file(ev)) ok = true;
-        }
+        if(pick_touch_event(ev, sizeof ev)) ok = evdev_set_file(ev);
         if(!ok) usleep(200000);
     }
     if(ok) {
