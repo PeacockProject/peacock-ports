@@ -41,26 +41,43 @@ title  = "Arch (PeacockOS)"
 [[stage]] ...                    # ordered stages (see below)
 ```
 
+## Declarative — TOML declares, scripts execute
+
+A blueprint TOML is **purely declarative**: it says *what to ask* (fields), *the steps* (with
+description text + a `script` to run), and *digests* of any downloaded archive. The actual shell
+logic lives in **scripts shipped alongside the TOML** in `blueprints/<channel>/<flavor>/`, each
+**minisign-signed and verified** before it runs — same trust model as the TOMLs.
+
+## `[archive]` (install blueprints)
+
+```toml
+[archive]                        # a downloadable flavor tarball + its digest
+url    = "https://…/arch-base.tar.gz"
+sha256 = "…"                     # the TOML is signed ⇒ this digest is trusted; the runner exposes
+                                 # it as $BP_ARCHIVE_URL / $BP_ARCHIVE_SHA256, and fetch-base.sh
+                                 # verifies the download against it before extraction.
+```
+
 ## Stage
 
 ```toml
 [[stage]]
-id       = "desktop"             # unique within the blueprint; key in stage_status + requires
-phase    = "oobe"                # "install" = runs in PRP | "oobe" = runs first boot, in the base
-title    = "Choose a desktop"    # screen title
-requires = ["account"]           # stage ids that must be `done` first (ordering DAG); default []
-when     = "desktop != none"     # optional show-if over the answers store; "" = always shown
+id          = "desktop"          # unique within the blueprint; key in stage_status + requires
+title       = "Choose a desktop" # screen title
+description = "A desktop + login manager."   # description text shown under the title
+requires    = ["account"]        # stage ids that must be `done` first (ordering DAG); default []
+when        = "desktop != none"  # optional show-if over the answers store; "" = always shown
+script      = "desktop.sh"        # sig-verified script in this flavor folder, run after capture
+# action    = """ … """          # (alt) inline POSIX sh for trivial steps
+# phase     = "install"|"oobe"    # defaults to the blueprint `kind`; rarely set explicitly
 
-[[stage.field]] ...              # zero or more UI fields (a stage with none is an info/action-only step)
-
-action        = """ ... """      # POSIX sh applied after the fields are captured (see Actions)
-# action_script = "stages/arch/desktop.sh"   # alternative: a separately-fetched+verified script
+[[stage.field]] ...              # zero or more UI fields (a step with none is a pure action step)
 ```
 
-- `phase` decides **where** the stage runs. `install` stages run during the PRP install (target
-  is being laid down); `oobe` stages run on the installed system's first boot, in the base.
-- `requires` is a DAG; the runner topologically sorts the stages of the current phase.
-- A stage with no fields is allowed (a pure action step, e.g. "enable services").
+- A stage names a **`script`** (preferred) or an inline `action`; the script is fetched + verified
+  + run with `run_in_target`, `$ANS_<key>`, and `bp_log/bp_progress/bp_fail` available.
+- `requires` is a DAG; the runner topologically sorts the stages.
+- `phase` defaults to the blueprint's `kind` (`install`/`oobe`), so per-stage `phase` is rarely needed.
 
 ## Field
 

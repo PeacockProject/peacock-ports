@@ -1,39 +1,18 @@
-# Arch CONFIGURE blueprint (blueprints/<channel>/arch/configure.toml) — see SCHEMA.md.
-# The first-boot OOBE (and the builder at build time) fetch + run this against ROOT=/flavors/arch.
-# Flavor/init/disk are chosen in PRP at install; everything here is configured FRESH on first boot.
+# Arch CONFIGURE blueprint (declarative). First-boot setup, run by the base OOBE (and the builder)
+# against ROOT=/flavors/arch. This TOML only DECLARES: what to ASK (fields), the step descriptions,
+# and a sig-verified script (shipped in blueprints/<channel>/arch/) to run for each step. The runner
+# provides run_in_target, $ANS_<key> for every captured answer, and bp_log/bp_progress/bp_fail.
 
 schema = 1
 kind   = "oobe"
 flavor = "arch"
 title  = "Arch (PeacockOS)"
 
-# All stages are oobe-phase: PRP asks only flavor + init + disk (init is the base init variant,
-# chosen natively in the installer); EVERYTHING the user sees here is configured FRESH on first
-# boot by the base OOBE, against ROOT=/flavors/arch. (The init system is not a blueprint field —
-# the actions auto-detect it via run_in_target.)
-
 [[stage]]
-id    = "hostname"
-phase = "oobe"
-title = "Name this device"
-
-  [[stage.field]]
-  key      = "host"
-  type     = "text"
-  label    = "HOSTNAME"
-  default  = "peacock"
-  validate = "^[a-z0-9][a-z0-9-]{0,62}$"
-  required = true
-
-action = """
-bp_log "hostname -> $ANS_host"
-printf '%s\\n' "$ANS_host" > "$ROOT/etc/hostname"
-"""
-
-[[stage]]
-id    = "account"
-phase = "oobe"
-title = "Create your account"
+id          = "account"
+title       = "Create your account"
+description = "Your login user and password (applied immediately, never stored)."
+script      = "account.sh"
 
   [[stage.field]]
   key      = "user"
@@ -49,17 +28,26 @@ title = "Create your account"
   label    = "PASSWORD"
   required = true
 
-action = """
-bp_log "creating $ANS_user"
-run_in_target useradd -m -G wheel "$ANS_user" || bp_fail "useradd failed"
-printf '%s:%s' "$ANS_user" "$ANS_pass" | run_in_target chpasswd || bp_fail "chpasswd failed"
-"""
+[[stage]]
+id          = "hostname"
+title       = "Name this device"
+description = "The network name for this device."
+script      = "hostname.sh"
+
+  [[stage.field]]
+  key      = "host"
+  type     = "text"
+  label    = "HOSTNAME"
+  default  = "peacock"
+  validate = "^[a-z0-9][a-z0-9-]{0,62}$"
+  required = true
 
 [[stage]]
-id       = "timezone"
-phase    = "oobe"
-title    = "Set your timezone"
-requires = ["account"]
+id          = "timezone"
+title       = "Set your timezone"
+description = "Your local timezone (Region/City)."
+requires    = ["account"]
+script      = "timezone.sh"
 
   [[stage.field]]
   key         = "timezone"
@@ -70,16 +58,12 @@ requires = ["account"]
   validate    = "^[A-Za-z]+/[A-Za-z_+-]+$|^UTC$"
   required    = true
 
-action = """
-bp_log "timezone -> $ANS_timezone"
-run_in_target ln -sf "/usr/share/zoneinfo/$ANS_timezone" /etc/localtime || bp_fail "bad timezone"
-"""
-
 [[stage]]
-id       = "locale"
-phase    = "oobe"
-title    = "Set your language"
-requires = ["account"]
+id          = "locale"
+title       = "Set your language"
+description = "Your system locale."
+requires    = ["account"]
+script      = "locale.sh"
 
   [[stage.field]]
   key     = "locale"
@@ -88,17 +72,12 @@ requires = ["account"]
   options = ["en_US.UTF-8","en_GB.UTF-8","de_DE.UTF-8","fr_FR.UTF-8","es_ES.UTF-8","tr_TR.UTF-8","ru_RU.UTF-8","zh_CN.UTF-8","ja_JP.UTF-8"]
   default = "en_US.UTF-8"
 
-action = """
-bp_log "locale -> $ANS_locale"
-run_in_target sh -c "echo '$ANS_locale UTF-8' >> /etc/locale.gen && locale-gen"
-printf 'LANG=%s\\n' "$ANS_locale" | run_in_target tee /etc/locale.conf >/dev/null
-"""
-
 [[stage]]
-id       = "desktop"
-phase    = "oobe"
-title    = "Choose a desktop"
-requires = ["account"]
+id          = "desktop"
+title       = "Choose a desktop"
+description = "A desktop environment + login manager (installed from the network)."
+requires    = ["account"]
+script      = "desktop.sh"
 
   [[stage.field]]
   key     = "desktop"
@@ -114,7 +93,3 @@ requires = ["account"]
   options = ["none","SDDM","LightDM"]
   default = "none"
   when    = "desktop != none"
-
-# Bigger action → a separately fetched + verified script, path relative to this flavor folder
-# (blueprints/<channel>/arch/stages/desktop.sh). ANS_desktop / ANS_dm are exported.
-action_script = "stages/desktop.sh"

@@ -1,59 +1,37 @@
-# Arch INSTALL blueprint (blueprints/<channel>/arch/install.toml) — the recipe for bringing up the
-# Arch FLAVOR base: where to fetch its base rootfs tarball, how to lay it down under /flavors/arch,
-# and the minimal post-extract prep to make it boot as a guest under peacock-init. Served from
-# genmirror so the base-bringup updates without a PRP rebuild.
-#
-# PRP owns only the MECHANISM (partition the target's nested GPT, mkfs, mount at $ANS_target,
-# install the Peacock base layer, stage the bootloader) and hands these vars to the runner:
-#   $ANS_target  the mounted target root        $ANS_flavor  = arch
-#   $ANS_init    chosen base init (openrc|...)   $ANS_device  device codename (e.g. daisy)
-#   $ANS_arch    cpu arch (e.g. aarch64)
-# User-facing setup (account, hostname, desktop, DM, timezone) is NOT here — that's the first-boot
-# OOBE (configure.toml). This blueprint's only job: get the Arch base on disk and bootable.
+# Arch INSTALL blueprint (declarative). Brings up the Arch FLAVOR base. This TOML only DECLARES —
+# the archive + its digest, and the ordered steps (each naming a sig-verified shell script shipped
+# alongside it in blueprints/<channel>/arch/). PRP partitions/mounts the target ($ANS_target),
+# installs the Peacock base layer + bootloader (mechanism), and runs these steps via the runner,
+# which provides: $ANS_target / $ANS_flavor / $ANS_init / $ANS_device / $ANS_arch, run_in_target,
+# bp_log/bp_progress/bp_fail, and $BP_ARCHIVE_URL / $BP_ARCHIVE_SHA256 from [archive].
 
 schema = 1
 kind   = "install"
 flavor = "arch"
 title  = "Arch base install"
 
-[[stage]]
-id    = "fetch-base"
-phase = "install"
-title = "Downloading the Arch base"
-action = """
-bp_progress 35
-url="https://genmirror.peacockos.org/flavors/stable/$ANS_arch/arch-base.tar.gz"
-bp_log "fetching the Arch base rootfs"
-curl -fsSL "$url" -o /tmp/flavor-base.tar.gz || wget -q -O /tmp/flavor-base.tar.gz "$url" \
-	|| bp_fail "could not download the Arch base ($url)"
-"""
+# The flavor base tarball + its digest. This TOML is minisign-signed, so the digest is trusted —
+# fetch-base.sh verifies the download against it before extraction.
+[archive]
+url    = "https://genmirror.peacockos.org/flavors/stable/aarch64/arch-base.tar.gz"
+sha256 = "0000000000000000000000000000000000000000000000000000000000000000"  # set at base-tarball publish
 
 [[stage]]
-id       = "extract-base"
-phase    = "install"
-title    = "Extracting the Arch base"
-requires = ["fetch-base"]
-action = """
-bp_progress 70
-dest="$ANS_target/flavors/$ANS_flavor"
-mkdir -p "$dest" "$ANS_target/peacock/etc"
-# -p preserves perms/owners from the base tarball.
-tar -xpf /tmp/flavor-base.tar.gz -C "$dest" || bp_fail "extract failed"
-# Record the active flavor so peacock-init boots it (and the OOBE knows which configure.toml).
-printf '%s\\n' "$ANS_flavor" > "$ANS_target/peacock/etc/active-flavor"
-rm -f /tmp/flavor-base.tar.gz
-"""
+id          = "fetch-base"
+title       = "Downloading the Arch base"
+description = "Fetching and digest-verifying the Arch base rootfs archive."
+script      = "fetch-base.sh"
 
 [[stage]]
-id       = "prep-base"
-phase    = "install"
-title    = "Preparing the Arch base"
-requires = ["extract-base"]
-action = """
-bp_progress 90
-root="$ANS_target/flavors/$ANS_flavor"
-# Minimal post-extract prep so the flavor boots as a guest; the OOBE (configure.toml) does the
-# real setup. Seed DNS so first-boot package installs can reach the network.
-[ -f "$root/etc/resolv.conf" ] || cp /etc/resolv.conf "$root/etc/resolv.conf" 2>/dev/null || true
-bp_log "Arch base laid down at /flavors/$ANS_flavor"
-"""
+id          = "extract-base"
+title       = "Extracting the Arch base"
+description = "Unpacking the base into /flavors/arch and recording the active flavor."
+requires    = ["fetch-base"]
+script      = "extract-base.sh"
+
+[[stage]]
+id          = "prep-base"
+title       = "Preparing the base"
+description = "Minimal post-extract prep so the flavor boots as a guest; first-run setup is the OOBE."
+requires    = ["extract-base"]
+script      = "prep-base.sh"
