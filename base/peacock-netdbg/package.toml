@@ -1,0 +1,17 @@
+# peacock-netdbg — DEV-ONLY USB RNDIS + dropbear bring-up for headless debugging over USB. Gives
+# UNAUTHENTICATED root over the USB gadget (ssh root@172.16.42.1), so it must NOT ship in
+# production. Device-agnostic (auto-detects the UDC + gadget); peacock-init runs it on boot when
+# installed, and the first-boot OOBE also triggers it. Remove from the base deps before release.
+
+[package]
+name = "peacock-netdbg"
+version = "0.1.0"
+description = "DEV-ONLY: bring up USB RNDIS + passwordless-root dropbear for headless debugging (ssh root@172.16.42.1). Device-agnostic. Do NOT ship in production."
+depends = ["busybox", "dropbear"]
+
+[install]
+layout = "system"
+
+[build]
+source = ""
+use_qemu = false

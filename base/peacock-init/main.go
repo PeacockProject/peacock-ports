@@ -132,6 +132,7 @@ func main() {
 	earlyMounts()
 	openKmsg() // retry once /dev (devtmpfs) is mounted
 
+	runDebugNet()    // optional USB RNDIS + ssh debug bring-up (only if peacock-netdbg is installed)
 	bringUpNetwork() // connect saved Wi-Fi before flavor entry (shared net namespace)
 
 	flavor := activeFlavor()
@@ -220,6 +221,25 @@ func bringUpNetwork() {
 	if err := cmd.Run(); err != nil {
 		logf("peacock-net failed: %v (continuing offline)", err)
 	}
+}
+
+// runDebugNet starts the optional USB RNDIS + dropbear debug helper when the (dev-only)
+// peacock-netdbg package is installed. Absent in production -> no-op. Backgrounded so it never
+// blocks boot; the helper itself is idempotent (no-op once dropbear is up).
+func runDebugNet() {
+	const helper = "/sbin/peacock-netdbg"
+	if st, err := os.Stat(helper); err != nil || st.Mode()&0o111 == 0 {
+		return
+	}
+	logf("starting USB debug net (%s)", helper)
+	cmd := exec.Command(helper)
+	cmd.Env = childEnv
+	cmd.Stdout, cmd.Stderr = kmsgW, kmsgW
+	if err := cmd.Start(); err != nil {
+		logf("peacock-netdbg failed to start: %v", err)
+		return
+	}
+	go func() { _ = cmd.Wait() }() // reap; don't block boot
 }
 
 // shutdownDevice syncs and powers off (or reboots) the real hardware. Called
