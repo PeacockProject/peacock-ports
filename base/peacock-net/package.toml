@@ -12,6 +12,7 @@ depends = ["wpa_supplicant"]
 [install]
 layout = "system"
 
+
 [build]
 source = ""
-type = "raw"
+use_qemu = false

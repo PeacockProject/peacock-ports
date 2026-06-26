@@ -1,18 +1,15 @@
 #!/bin/sh
 # peacock-net — base Wi-Fi bring-up. Run by peacock-init BEFORE entering the flavor, using the
-# credentials PRP saved at install time. The flavor shares the base's network namespace, so it (and
-# its first-boot OOBE) inherit the connection. No saved network -> no-op. Mirrors PRP's prp-net but
+# credentials PRP saved at install. The flavor shares the base's network namespace, so it (and its
+# first-boot OOBE) inherit the connection. No saved network -> no-op. Mirrors PRP's prp-net but
 # against the installed base (real /lib/modules + /lib/firmware) and a pre-saved wpa config.
 set -u
 NETDIR=/peacock/etc/network
 CONF="$NETDIR/wpa.conf"
-[ -f "$CONF" ] || exit 0   # nothing was saved at install — nothing to do
+[ -f "$CONF" ] || exit 0
 
 log() { echo "peacock-net: $*" >&2; }
 
-# Load the device's Wi-Fi module chain. The device build may drop an explicit list at
-# $NETDIR/wifi-modules (cross-built modules.dep doesn't always capture wcn36xx's deps); default to
-# the qcom wcnss/wcn36xx chain. Firmware (incl. regulatory.db) lives at /lib/firmware in the base.
 if command -v modprobe >/dev/null 2>&1; then
 	[ -d /sys/module/firmware_class/parameters ] && echo /lib/firmware > /sys/module/firmware_class/parameters/path 2>/dev/null || true
 	mods="$(cat "$NETDIR/wifi-modules" 2>/dev/null || true)"
@@ -30,7 +27,6 @@ ip link set "$iface" up 2>/dev/null || ifconfig "$iface" up 2>/dev/null || true
 
 mkdir -p /var/run/wpa_supplicant
 wpa_supplicant -B -i "$iface" -c "$CONF" >/dev/null 2>&1
-# Re-apply the regulatory country (the saved conf carries it too) so 5GHz/DFS is usable.
 cc="$(cat "$NETDIR/wifi-country" 2>/dev/null || true)"
 [ -n "$cc" ] && wpa_cli -i "$iface" set country "$cc" >/dev/null 2>&1 || true
 
