@@ -1,8 +1,8 @@
 [package]
 name = "peacock-base"
-version = "0.1.0"
+version = "0.1.1"
 description = "PeacockOS base metapackage — a thin supervisor that boots as PID 1 (peacock-init), enters the active distro flavor as a namespaced guest, and recovers on failure. NO conventional init/service-manager: peacock-init IS the init. Services, dbus, udev, the desktop all live inside the flavor; the base just brings up one flavor. The distro userland ships separately as flavor-<name>-base."
-depends = ["peacock-init", "busybox", "util-linux", "feather"]
+depends = ["peacock-init", "busybox", "util-linux", "feather", "peacock-net"]
 
 [install]
 layout = "meta"

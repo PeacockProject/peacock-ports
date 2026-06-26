@@ -120,6 +120,8 @@ func main() {
 	earlyMounts()
 	openKmsg() // retry once /dev (devtmpfs) is mounted
 
+	bringUpNetwork() // connect saved Wi-Fi before flavor entry (shared net namespace)
+
 	flavor := activeFlavor()
 	root := filepath.Join(flavorsRoot, flavor)
 	if !isDir(root) {
@@ -155,6 +157,23 @@ func main() {
 
 	// shutdownDevice/enterRecovery only return on failure; keep PID 1 alive.
 	haltLoud("recovery returned")
+}
+
+// bringUpNetwork runs /sbin/peacock-net (the peacock-net package) to connect Wi-Fi from the creds
+// PRP saved at install, BEFORE entering the flavor. The flavor shares our network namespace, so it
+// and its first-boot OOBE inherit the connection. No saved creds -> peacock-net is a no-op. Network
+// failure is non-fatal: boot continues offline and the OOBE can retry.
+func bringUpNetwork() {
+	const netConf = "/peacock/etc/network/wpa.conf"
+	if _, err := os.Stat(netConf); err != nil {
+		return // nothing was saved at install
+	}
+	logf("bringing up saved network")
+	cmd := exec.Command("/sbin/peacock-net")
+	cmd.Stdout, cmd.Stderr = kmsgW, kmsgW
+	if err := cmd.Run(); err != nil {
+		logf("peacock-net failed: %v (continuing offline)", err)
+	}
 }
 
 // shutdownDevice syncs and powers off (or reboots) the real hardware. Called

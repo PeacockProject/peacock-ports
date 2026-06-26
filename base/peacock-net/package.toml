@@ -1,0 +1,17 @@
+# peacock-net — base Wi-Fi bring-up. File-only port (ships /sbin/peacock-net, the udhcpc lease
+# script, and a vendored regulatory.db). Run by peacock-init before flavor entry, using the creds
+# PRP saved at install, so the flavor + first-boot OOBE have network. Depends on wpa_supplicant;
+# busybox (udhcpc) + the device kernel modules/firmware come from the base + device packages.
+
+[package]
+name = "peacock-net"
+version = "0.1.0"
+description = "PeacockOS base Wi-Fi bring-up: connect on boot from the credentials PRP saved at install, so the flavor (shared net namespace) and the first-boot OOBE have network."
+depends = ["wpa_supplicant"]
+
+[install]
+layout = "system"
+
+[build]
+source = ""
+type = "raw"

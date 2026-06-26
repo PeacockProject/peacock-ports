@@ -1,6 +1,6 @@
 [package]
 name = "peacock-init"
-version = "0.2.2"
+version = "0.2.3"
 description = "PeacockOS base supervisor / PID 1. Boots the base, enters the active flavor (plain chroot in phase 1, PID+mount namespaces later), and stays resident to supervise + recover. Installs /sbin/peacock-init and the /sbin/init symlink the initramfs hands off to."
 
 [install]
