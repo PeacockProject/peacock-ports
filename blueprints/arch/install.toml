@@ -10,11 +10,12 @@ kind   = "install"
 flavor = "arch"
 title  = "Arch base install"
 
-# The flavor base tarball + its digest. This TOML is minisign-signed, so the digest is trusted —
-# fetch-base.sh verifies the download against it before extraction.
+# The flavor base tarball + its digest. This is the Arch Linux ARM aarch64 generic rootfs, mirrored
+# on genmirror. The TOML is minisign-signed, so the digest is trusted — fetch-base.sh verifies the
+# download against it before extraction. (Refresh url+sha256 together whenever the mirror updates.)
 [archive]
 url    = "https://genmirror.peacockos.org/flavors/stable/aarch64/arch-base.tar.gz"
-sha256 = "0000000000000000000000000000000000000000000000000000000000000000"  # set at base-tarball publish
+sha256 = "3cf5764fb6fec7bffdff98787e52ccd15d5d6390a2496c7028d7c4950404c56a"
 
 [[stage]]
 id          = "fetch-base"
