@@ -1,9 +1,9 @@
-# Arch (PeacockOS) blueprint — see SCHEMA.md.
-# Flavor + target disk are chosen in PRP *before* this blueprint is fetched (the flavor choice
-# selects which blueprint to download), so they are not stages here. install-phase stages run
-# during the PRP install; oobe-phase stages run on first boot, in the base, against /flavors/arch.
+# Arch CONFIGURE blueprint (blueprints/<channel>/arch/configure.toml) — see SCHEMA.md.
+# The first-boot OOBE (and the builder at build time) fetch + run this against ROOT=/flavors/arch.
+# Flavor/init/disk are chosen in PRP at install; everything here is configured FRESH on first boot.
 
 schema = 1
+kind   = "oobe"
 flavor = "arch"
 title  = "Arch (PeacockOS)"
 
@@ -115,5 +115,6 @@ requires = ["account"]
   default = "none"
   when    = "desktop != none"
 
-# Bigger action → a separately fetched + verified script. ANS_desktop / ANS_dm are exported.
-action_script = "stages/arch/desktop.sh"
+# Bigger action → a separately fetched + verified script, path relative to this flavor folder
+# (blueprints/<channel>/arch/stages/desktop.sh). ANS_desktop / ANS_dm are exported.
+action_script = "stages/desktop.sh"

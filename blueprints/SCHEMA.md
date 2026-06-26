@@ -6,15 +6,25 @@ genmirror under `blueprints/<channel>/` and executed by the shared **blueprint r
 recovery image or the builder; it's all served, so a change is a one-file re-upload — no PRP/image
 rebuild.
 
-## Two kinds (`kind`)
+## Layout (per-flavor folders)
+
+```
+blueprints/<channel>/
+  index.toml                      # served flavor list — [[flavor]] id/name
+  <flavor>/install.toml           # kind=install   — base-install instructions
+  <flavor>/configure.toml         # kind=oobe      — first-boot setup
+  <flavor>/stages/*.sh            # action_script files (path relative to <flavor>/)
+```
+
+Each flavor folder owns BOTH its install and its configure blueprints:
 
 | file | `kind` | run by | `ROOT` | purpose |
 |------|--------|--------|--------|---------|
-| `install.toml` (global) | `install` | **PRP** | the target mount | base-install **instructions** (package sets, active-flavor). PRP still owns the device-specific *mechanism* — partitioning, loop setup, mkfs, bootloader staging. |
-| `<flavor>.toml` (per flavor) | `oobe` | **base OOBE** (first boot) + the **builder** (build time) | `/flavors/<active>` (boot) or the rootfs being built | first-boot setup: account, hostname, desktop, DM, timezone — the polymorphic UI the user fills in. |
+| `<flavor>/install.toml` | `install` | **PRP** | the target mount | base-install **instructions** (package sets, active-flavor). PRP still owns the device-specific *mechanism* — partitioning, loop setup, mkfs, bootloader staging. |
+| `<flavor>/configure.toml` | `oobe` | **base OOBE** (first boot) + the **builder** (build time) | `/flavors/<active>` (boot) or the rootfs being built | first-boot setup: account, hostname, desktop, DM, timezone — the polymorphic UI the user fills in. |
 | `index.toml` | — | PRP | — | lists available flavors (`[[flavor]]` id/name) so the installer's flavor list is served, not hardcoded. |
 
-The same `<flavor>.toml` actions run in two places via the `run_in_target` shim
+The same `configure.toml` actions run in two places via the `run_in_target` shim
 (`chroot "$ROOT" "$@"`) — the builder at build time and the base OOBE on first boot — so it's the
 **single source of truth** for flavor config (no duplicate `rootfs.go` heredocs).
 
