@@ -10,11 +10,21 @@ CONF="$NETDIR/wpa.conf"
 
 log() { echo "peacock-net: $*" >&2; }
 
+# Make sure busybox applet symlinks (modprobe/ip/...) exist — the install-time helper may not have
+# run, and without modprobe nothing below works.
+[ -x /usr/sbin/peacock-busybox-links ] && /usr/sbin/peacock-busybox-links 2>/dev/null || true
 if command -v modprobe >/dev/null 2>&1; then
 	[ -d /sys/module/firmware_class/parameters ] && echo /lib/firmware > /sys/module/firmware_class/parameters/path 2>/dev/null || true
+	# Full wcnss/wcn36xx stack IN DEPENDENCY ORDER. QRTR (the QMI IPC router) is not a symbol dep of
+	# the wcnss PIL, but the PIL needs it for its QMI handle, so it must be loaded explicitly; busybox
+	# modprobe also won't reliably pull the qcom remoteproc dep chain, so list it. The wcnss chip
+	# boots asynchronously, so wcn36xx (loaded last) can lose the race — reload it once if wlan0
+	# never shows up.
 	mods="$(cat "$NETDIR/wifi-modules" 2>/dev/null || true)"
-	[ -n "$mods" ] || mods="qcom_wcnss_pil cfg80211 mac80211 wcnss_ctrl wcn36xx"
+	[ -n "$mods" ] || mods="qrtr qrtr_smd qmi_helpers qcom_common qcom_pil_info qcom_sysmon qcom_wcnss_pil wcnss_ctrl cfg80211 mac80211 wcn36xx"
 	for m in $mods; do modprobe "$m" 2>/dev/null || true; done
+	i=0; while [ "$i" -lt 10 ] && [ ! -e /sys/class/net/wlan0 ]; do sleep 1; i=$((i + 1)); done
+	[ -e /sys/class/net/wlan0 ] || { modprobe -r wcn36xx 2>/dev/null; sleep 1; modprobe wcn36xx 2>/dev/null; sleep 3; }
 fi
 
 iface=
@@ -26,7 +36,7 @@ done
 ip link set "$iface" up 2>/dev/null || ifconfig "$iface" up 2>/dev/null || true
 
 mkdir -p /var/run/wpa_supplicant
-wpa_supplicant -B -i "$iface" -c "$CONF" >/dev/null 2>&1
+wpa_supplicant -B -i "$iface" -c "$CONF" -Dnl80211 >/dev/null 2>&1
 cc="$(cat "$NETDIR/wifi-country" 2>/dev/null || true)"
 [ -n "$cc" ] && wpa_cli -i "$iface" set country "$cc" >/dev/null 2>&1 || true
 
