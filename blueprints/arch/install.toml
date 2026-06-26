@@ -1,12 +1,15 @@
-# Arch INSTALL blueprint (blueprints/<channel>/arch/install.toml) — the base-install INSTRUCTIONS
-# for the Arch flavor, served from genmirror so the install flow updates without a PRP rebuild.
-# PRP passes the chosen $ANS_init / $ANS_device and the target mount $ANS_target ($ANS_flavor=arch).
-# The device-specific MECHANISM (nested-GPT partitioning, loop setup, mkfs, bootloader staging)
-# stays in PRP — these stages are the package + config instructions that change between releases
-# (add a base package, change a default) and shouldn't require reflashing recovery.
+# Arch INSTALL blueprint (blueprints/<channel>/arch/install.toml) — the recipe for bringing up the
+# Arch FLAVOR base: where to fetch its base rootfs tarball, how to lay it down under /flavors/arch,
+# and the minimal post-extract prep to make it boot as a guest under peacock-init. Served from
+# genmirror so the base-bringup updates without a PRP rebuild.
 #
-# Run by the shared headless blueprint runner (bp_run_stage_action): PRP fetches+verifies this,
-# partitions/mounts the target, runs these stages, then stages the bootloader.
+# PRP owns only the MECHANISM (partition the target's nested GPT, mkfs, mount at $ANS_target,
+# install the Peacock base layer, stage the bootloader) and hands these vars to the runner:
+#   $ANS_target  the mounted target root        $ANS_flavor  = arch
+#   $ANS_init    chosen base init (openrc|...)   $ANS_device  device codename (e.g. daisy)
+#   $ANS_arch    cpu arch (e.g. aarch64)
+# User-facing setup (account, hostname, desktop, DM, timezone) is NOT here — that's the first-boot
+# OOBE (configure.toml). This blueprint's only job: get the Arch base on disk and bootable.
 
 schema = 1
 kind   = "install"
@@ -14,27 +17,43 @@ flavor = "arch"
 title  = "Arch base install"
 
 [[stage]]
-id    = "base"
+id    = "fetch-base"
 phase = "install"
-title = "Installing the Peacock base"
+title = "Downloading the Arch base"
 action = """
-bp_progress 30
-bp_log "installing peacock-base + device-$ANS_device + init-$ANS_init"
-ftr install --root "$ANS_target" peacock-base "device-$ANS_device" "init-$ANS_init" \
-	|| bp_fail "base package install failed (genmirror reachable?)"
+bp_progress 35
+url="https://genmirror.peacockos.org/flavors/stable/$ANS_arch/arch-base.tar.gz"
+bp_log "fetching the Arch base rootfs"
+curl -fsSL "$url" -o /tmp/flavor-base.tar.gz || wget -q -O /tmp/flavor-base.tar.gz "$url" \
+	|| bp_fail "could not download the Arch base ($url)"
 """
 
 [[stage]]
-id       = "flavor"
+id       = "extract-base"
 phase    = "install"
-title    = "Installing the flavor"
-requires = ["base"]
+title    = "Extracting the Arch base"
+requires = ["fetch-base"]
 action = """
 bp_progress 70
-bp_log "installing flavor-$ANS_flavor-base"
-ftr install --root "$ANS_target/flavors/$ANS_flavor" "flavor-$ANS_flavor-base" \
-	|| bp_fail "flavor base install failed"
-# Record the active flavor so the base boots it (and the OOBE knows which blueprint to fetch).
-mkdir -p "$ANS_target/peacock/etc"
+dest="$ANS_target/flavors/$ANS_flavor"
+mkdir -p "$dest" "$ANS_target/peacock/etc"
+# -p preserves perms/owners from the base tarball.
+tar -xpf /tmp/flavor-base.tar.gz -C "$dest" || bp_fail "extract failed"
+# Record the active flavor so peacock-init boots it (and the OOBE knows which configure.toml).
 printf '%s\\n' "$ANS_flavor" > "$ANS_target/peacock/etc/active-flavor"
+rm -f /tmp/flavor-base.tar.gz
+"""
+
+[[stage]]
+id       = "prep-base"
+phase    = "install"
+title    = "Preparing the Arch base"
+requires = ["extract-base"]
+action = """
+bp_progress 90
+root="$ANS_target/flavors/$ANS_flavor"
+# Minimal post-extract prep so the flavor boots as a guest; the OOBE (configure.toml) does the
+# real setup. Seed DNS so first-boot package installs can reach the network.
+[ -f "$root/etc/resolv.conf" ] || cp /etc/resolv.conf "$root/etc/resolv.conf" 2>/dev/null || true
+bp_log "Arch base laid down at /flavors/$ANS_flavor"
 """

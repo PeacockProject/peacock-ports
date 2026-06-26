@@ -20,7 +20,7 @@ Each flavor folder owns BOTH its install and its configure blueprints:
 
 | file | `kind` | run by | `ROOT` | purpose |
 |------|--------|--------|--------|---------|
-| `<flavor>/install.toml` | `install` | **PRP** | the target mount | base-install **instructions** (package sets, active-flavor). PRP still owns the device-specific *mechanism* — partitioning, loop setup, mkfs, bootloader staging. |
+| `<flavor>/install.toml` | `install` | **PRP** | the target mount | how to bring up THIS flavor's **base**: where to fetch its rootfs tarball, extract it into `/flavors/<flavor>`, post-extract prep + `active-flavor`. PRP owns only the *mechanism* (partition/mkfs/mount the target, Peacock base layer, bootloader). |
 | `<flavor>/configure.toml` | `oobe` | **base OOBE** (first boot) + the **builder** (build time) | `/flavors/<active>` (boot) or the rootfs being built | first-boot setup: account, hostname, desktop, DM, timezone — the polymorphic UI the user fills in. |
 | `index.toml` | — | PRP | — | lists available flavors (`[[flavor]]` id/name) so the installer's flavor list is served, not hardcoded. |
 
