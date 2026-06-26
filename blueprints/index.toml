@@ -1,0 +1,7 @@
+# Available PeacockOS flavors — fetched (verified) by the installer to populate the flavor list.
+# Adding a flavor = publish its <id>.toml blueprint + an entry here. No client/PRP rebuild needed.
+schema = 1
+
+[[flavor]]
+id   = "arch"
+name = "Arch"

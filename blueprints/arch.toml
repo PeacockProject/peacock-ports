@@ -7,11 +7,14 @@ schema = 1
 flavor = "arch"
 title  = "Arch (PeacockOS)"
 
-# ---- install phase (runs in PRP, target being laid down) --------------------------------------
+# All stages are oobe-phase: PRP asks only flavor + init + disk (init is the base init variant,
+# chosen natively in the installer); EVERYTHING the user sees here is configured FRESH on first
+# boot by the base OOBE, against ROOT=/flavors/arch. (The init system is not a blueprint field —
+# the actions auto-detect it via run_in_target.)
 
 [[stage]]
 id    = "hostname"
-phase = "install"
+phase = "oobe"
 title = "Name this device"
 
   [[stage.field]]
@@ -22,21 +25,10 @@ title = "Name this device"
   validate = "^[a-z0-9][a-z0-9-]{0,62}$"
   required = true
 
-  # init system is per-flavor (Arch supports both) and drives which init-<init> package PRP
-  # installs — declared here so it's scriptable, not hardcoded in the installer.
-  [[stage.field]]
-  key     = "init"
-  type    = "dropdown"
-  label   = "INIT SYSTEM"
-  options = ["openrc","systemd"]
-  default = "openrc"
-
 action = """
 bp_log "hostname -> $ANS_host"
 printf '%s\\n' "$ANS_host" > "$ROOT/etc/hostname"
 """
-
-# ---- oobe phase (runs first boot, in the base, ROOT=/flavors/arch) -----------------------------
 
 [[stage]]
 id    = "account"
