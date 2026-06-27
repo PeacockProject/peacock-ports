@@ -10,6 +10,10 @@
 #include <signal.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <ifaddrs.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <net/if.h>
 
 #define LV_CONF_INCLUDE_SIMPLE 1
 #include "lvgl/lvgl.h"
@@ -17,6 +21,7 @@
 #include "prp_theme.h"
 #include "oobe_wizard.h"
 #include "blueprint.h"
+#include "prp_net_ui.h"
 
 LV_FONT_DECLARE(pk_serif_30);
 LV_FONT_DECLARE(pk_serif_44);
@@ -25,7 +30,7 @@ LV_FONT_DECLARE(pk_mono_20);
 
 static struct {
     oobe_cfg_t cfg;
-    int page, n_stages;       // pages: 0=welcome, 1..n=stage, n+1=confirm, n+2=progress, n+3=done
+    int page, n_stages;       // pages: 0=welcome, 1=network, 2..n+1=stage, n+2=confirm, n+3=progress, n+4=done
     int margin, gap;
     const lv_font_t *f_title, *f_body, *f_small;
 
@@ -55,6 +60,12 @@ static struct {
     char ibuf[512];
     size_t ilen;
 
+    // network/connectivity gate (page 1): the wifi connect status line + a poll timer that watches
+    // for connectivity and kicks the fetch once online. net_kicked_fetch guards a one-shot fork.
+    lv_obj_t *net_status;
+    lv_timer_t *net_gate_timer;
+    int net_kicked_fetch;
+
     // background configure.toml fetch (NEVER block the LVGL thread on the network)
     pid_t fetch_pid;
     lv_timer_t *fetch_timer;
@@ -65,14 +76,37 @@ static struct {
 } W;
 
 static int clampi(int v, int lo, int hi) { return v < lo ? lo : (v > hi ? hi : v); }
-static int PAGE_CONFIRM(void) { return W.n_stages + 1; }
-static int PAGE_PROGRESS(void) { return W.n_stages + 2; }
-static int PAGE_DONE(void) { return W.n_stages + 3; }
+#define PAGE_WELCOME 0
+#define PAGE_NETWORK 1
+#define FIRST_STAGE_PAGE 2
+static int PAGE_CONFIRM(void) { return FIRST_STAGE_PAGE + W.n_stages; }
+static int PAGE_PROGRESS(void) { return PAGE_CONFIRM() + 1; }
+static int PAGE_DONE(void) { return PAGE_CONFIRM() + 2; }
 
 static void render_page(void);
+static void start_fetch_if_needed(void);
+static void render_network(void);
+static void fetch_poll_cb(lv_timer_t *t);
+
+/* "online" = any non-loopback interface is up with an IPv4 address. Cheap + local; covers
+ * connect-on-boot, ethernet/RNDIS, and an in-OOBE wifi connect. */
+static int net_is_online(void) {
+    struct ifaddrs *ifa, *p;
+    int online = 0;
+    if(getifaddrs(&ifa) != 0) return 0;
+    for(p = ifa; p; p = p->ifa_next) {
+        if(!p->ifa_addr || p->ifa_addr->sa_family != AF_INET) continue;
+        if(p->ifa_flags & IFF_LOOPBACK) continue;
+        if(!(p->ifa_flags & IFF_UP)) continue;
+        online = 1; break;
+    }
+    freeifaddrs(ifa);
+    return online;
+}
 
 static void wizard_close(void) {
     if(W.prog_timer) { lv_timer_del(W.prog_timer); W.prog_timer = NULL; }
+    if(W.net_gate_timer) { lv_timer_del(W.net_gate_timer); W.net_gate_timer = NULL; }
     if(W.fetch_timer) { lv_timer_del(W.fetch_timer); W.fetch_timer = NULL; }
     if(W.fetch_pid > 0) { int st; kill(W.fetch_pid, SIGTERM); waitpid(W.fetch_pid, &st, 0); W.fetch_pid = 0; }
     if(W.apply_fd >= 0) { close(W.apply_fd); W.apply_fd = -1; }
@@ -251,6 +285,73 @@ static void render_welcome(void) {
     lv_obj_t *b = mk_label(W.content, line, W.f_small, PK_DIM);
     lv_obj_set_width(b, lv_pct(100));
     lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
+}
+
+/* ---- network / connectivity gate (page 1) ---- */
+static void net_wifi_btn_cb(lv_event_t *e) {
+    (void)e;
+    /* Full-screen scan/connect overlay (vendored prp_net_ui), driving peacock-net. On "Done" it
+     * closes back to this page; the gate timer below then sees the new connection. */
+    prp_net_ui_show(W.cfg.screen_w, W.cfg.screen_h, W.cfg.scale_pct, NULL);
+}
+
+/* Poll connectivity while on the network page: once online, kick the blueprint fetch; reflect the
+ * state in the status line and gate the footer's Continue button (hidden until we can proceed). */
+static void net_gate_tick(lv_timer_t *t) {
+    (void)t;
+    if(W.page != PAGE_NETWORK) {
+        if(W.net_gate_timer) { lv_timer_del(W.net_gate_timer); W.net_gate_timer = NULL; }
+        return;
+    }
+    int online = net_is_online() || prp_net_ui_connected();
+    if(online) start_fetch_if_needed();
+    int fetch_done = (W.net_kicked_fetch && W.fetch_pid == 0);
+
+    const char *msg; const char *next_txt = "Continue"; int show_next = 1;
+    if(W.bp_ready) {
+        msg = "Connected. Your setup is ready.";
+    } else if(!online) {
+        msg = "Connect to Wi-Fi to download your setup.";
+        show_next = 0;
+    } else if(!fetch_done) {
+        msg = "Connected — loading your setup…";
+        show_next = 0;
+    } else {
+        /* online, but the fetch failed (no blueprint / unreachable mirror). Let them through; the
+         * OOBE exits non-zero so peacock-init re-runs it next boot rather than bricking. */
+        msg = "Couldn't reach setup. Continue and it'll retry on the next boot.";
+        next_txt = "Continue anyway";
+    }
+    if(W.net_status) lv_label_set_text(W.net_status, msg);
+    if(W.next_lbl) lv_label_set_text(W.next_lbl, next_txt);
+    if(W.next) {
+        if(show_next) lv_obj_clear_flag(W.next, LV_OBJ_FLAG_HIDDEN);
+        else          lv_obj_add_flag(W.next, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+static void render_network(void) {
+    mk_kicker(W.content, "FIRST-TIME SETUP");
+    mk_label(W.content, "Get online", W.f_title, PK_CREAM);
+    lv_obj_t *d = mk_label(W.content, "PeacockOS downloads your setup over the internet. "
+                           "Connect to Wi-Fi to continue.", W.f_small, PK_DIM);
+    lv_obj_set_width(d, lv_pct(100));
+    lv_label_set_long_mode(d, LV_LABEL_LONG_WRAP);
+
+    lv_obj_t *wbtn = lv_btn_create(W.content);
+    lv_obj_set_width(wbtn, lv_pct(100));
+    lv_obj_set_height(wbtn, clampi(W.cfg.screen_h / 15, 56, 120));
+    lv_obj_t *wl = mk_label(wbtn, "Connect to Wi-Fi", W.f_body, PK_CREAM);
+    lv_obj_center(wl);
+    style_btn(wbtn, wl, true);
+    lv_obj_add_event_cb(wbtn, net_wifi_btn_cb, LV_EVENT_CLICKED, NULL);
+
+    W.net_status = mk_label(W.content, "", W.f_small, PK_DIM);
+    lv_obj_set_width(W.net_status, lv_pct(100));
+    lv_label_set_long_mode(W.net_status, LV_LABEL_LONG_WRAP);
+
+    if(!W.net_gate_timer) W.net_gate_timer = lv_timer_create(net_gate_tick, 500, NULL);
+    net_gate_tick(NULL); /* immediate first update so the page isn't blank for 500ms */
 }
 
 static void render_stage(int idx) {
@@ -478,12 +579,20 @@ static void render_done(void) {
 
 /* ---- navigation ---- */
 static int capture_page(void) {
-    if(W.page >= 1 && W.page <= W.n_stages) return capture_stage_fields();
+    if(W.page >= FIRST_STAGE_PAGE && W.page < PAGE_CONFIRM()) return capture_stage_fields();
     return 1;
 }
 static void next_cb(lv_event_t *e) {
     (void)e;
     if(!capture_page()) return; /* validation failed — stay */
+    if(W.page == PAGE_NETWORK) {
+        /* Gate: advance only once the blueprint is loaded (online + fetched), or when online but
+         * the fetch failed (→ stages stay empty → exit 75 → retry next boot). Offline stays put. */
+        int online = net_is_online() || prp_net_ui_connected();
+        int fetch_done = (W.net_kicked_fetch && W.fetch_pid == 0);
+        if(!(W.bp_ready || (online && fetch_done))) return;
+        W.page++; render_page(); return;
+    }
     if(W.page == PAGE_CONFIRM()) { W.page = PAGE_PROGRESS(); render_page(); return; }
     if(W.page < PAGE_DONE()) { W.page++; render_page(); }
 }
@@ -508,11 +617,14 @@ static void render_page(void) {
     snprintf(ind, sizeof ind, "%d / %d", W.page + 1, PAGE_DONE() + 1);
     lv_label_set_text(W.stepind, ind);
 
-    if(W.page == 0) {
+    if(W.page == PAGE_WELCOME) {
         lv_label_set_text(W.title, "Welcome"); render_welcome();
         set_footer(false, "Get started", true);
-    } else if(W.page >= 1 && W.page <= W.n_stages) {
-        lv_label_set_text(W.title, "Setup"); render_stage(W.page - 1);
+    } else if(W.page == PAGE_NETWORK) {
+        lv_label_set_text(W.title, "Network"); render_network();
+        set_footer(true, "Continue", true);
+    } else if(W.page >= FIRST_STAGE_PAGE && W.page < PAGE_CONFIRM()) {
+        lv_label_set_text(W.title, "Setup"); render_stage(W.page - FIRST_STAGE_PAGE);
         set_footer(true, "Next", true);
     } else if(W.page == PAGE_CONFIRM()) {
         lv_label_set_text(W.title, "Confirm"); render_confirm();
@@ -543,26 +655,36 @@ static void fetch_poll_cb(lv_timer_t *t) {
     if(W.page == 0) render_page();
 }
 
+/* Fork the configure.toml fetch+verify in a child (so the LVGL thread never blocks) and start the
+ * poll timer. One-shot (guarded by net_kicked_fetch); called by the network gate once online. With
+ * no base URL there's nothing to fetch — mark it kicked so the gate lets the user continue (→ the
+ * OOBE exits non-zero and retries next boot rather than dead-ending). */
+static void start_fetch_if_needed(void) {
+    if(W.bp || W.bp_ready || W.net_kicked_fetch) return;
+    W.net_kicked_fetch = 1;
+    if(!(W.cfg.blueprint_base_url && W.cfg.blueprint_pubkey)) return;
+    W.fetch_pid = fork();
+    if(W.fetch_pid == 0) {
+        char url[700], err[256];
+        snprintf(url, sizeof url, "%s/configure.toml", W.cfg.blueprint_base_url);
+        _exit(bp_fetch_verify(url, W.cfg.blueprint_pubkey, "/tmp/oobe-configure.toml", err, sizeof err) == 0 ? 0 : 1);
+    }
+    if(W.fetch_pid > 0 && !W.fetch_timer) W.fetch_timer = lv_timer_create(fetch_poll_cb, 200, NULL);
+}
+
 void prp_oobe_show(const oobe_cfg_t *cfg) {
     if(W.root) return;
     memset(&W, 0, sizeof W);
     W.cfg = *cfg;
 
-    /* Load the configure.toml. Local copy (sim/offline) loads inline (fast, no network). A remote
-     * fetch runs in a CHILD process so the LVGL thread NEVER blocks on the network — the welcome
-     * renders instantly and a poll timer loads the blueprint when the child finishes. With no
-     * network the child just fails and the OOBE stays fully responsive (stages stay empty). */
+    /* Load the configure.toml. A local copy (sim/offline) loads inline (fast, no network). The
+     * REMOTE blueprint is NOT fetched here — the network gate (page 1) fetches it lazily once we're
+     * actually online (see start_fetch_if_needed), so the fetch never races a down link and the UI
+     * stays instant. */
     if(cfg->blueprint_local) {
         char localbuf[640], err[256];
         snprintf(localbuf, sizeof localbuf, "%s/configure.toml", cfg->blueprint_local);
         W.bp = bp_load(localbuf, err, sizeof err);
-    } else if(cfg->blueprint_base_url && cfg->blueprint_pubkey) {
-        W.fetch_pid = fork();
-        if(W.fetch_pid == 0) {
-            char url[700], err[256];
-            snprintf(url, sizeof url, "%s/configure.toml", cfg->blueprint_base_url);
-            _exit(bp_fetch_verify(url, cfg->blueprint_pubkey, "/tmp/oobe-configure.toml", err, sizeof err) == 0 ? 0 : 1);
-        }
     }
     W.ans = bp_answers_load("");
     W.n_stages = W.bp ? (int)bp_phase_order(W.bp, BP_PHASE_OOBE, W.ord) : 0;
@@ -653,7 +775,4 @@ void prp_oobe_show(const oobe_cfg_t *cfg) {
 
     W.page = 0;
     render_page();
-
-    // Poll the background fetch (if any) without ever blocking the UI thread.
-    if(W.fetch_pid > 0) W.fetch_timer = lv_timer_create(fetch_poll_cb, 200, NULL);
 }
