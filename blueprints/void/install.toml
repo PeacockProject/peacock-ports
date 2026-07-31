@@ -1,0 +1,50 @@
+# Void Linux INSTALL blueprint (declarative). Brings up the Void FLAVOR base. This TOML only
+# DECLARES — the archive + its digest, and the ordered steps (each naming a sig-verified shell
+# script shipped alongside it in blueprints/<channel>/void/). PRP partitions/mounts the target,
+# installs the Peacock base layer + bootloader (mechanism), and runs these steps via the runner,
+# which provides: $ANS_target / $ANS_flavor / $ANS_arch, bp_log/bp_progress/bp_fail, $BP_WORK, and
+# $BP_ARCHIVE_URL / $BP_ARCHIVE_SHA256 from [archive].
+#
+# NOTE — in the INSTALL phase $ROOT is the PEACOCK BASE, not this flavor, so run_in_target is
+# useless here; the scripts below address the flavor root by path ($ANS_target/flavors/$ANS_flavor).
+
+schema = 1
+kind   = "install"
+flavor = "void"
+title  = "Void Linux base install"
+
+# Void's own aarch64 ROOTFS tarball (base-container-full), taken from the DATED live directory
+# rather than /live/current/ — "current" is republished on every image rollout and would silently
+# invalidate the digest below. This is the GLIBC variant; Void also publishes
+# void-aarch64-musl-ROOTFS-<date>.tar.xz, but glibc is the better fit here (real locale support,
+# widest binary/driver compatibility) — Alpine is already the musl flavor in this line-up.
+#
+# sha256 is the value published in Void's sha256sum.txt for this file, independently confirmed by
+# sha256sum on the downloaded tarball.
+[archive]
+# Mirrored onto genmirror 2026-07-31 from the upstream build below, because that upstream
+# path is pruned/rotated and would 404 within days (see tools/mirror-flavor-rootfs.sh).
+# The bytes — and therefore the sha256 — are identical to upstream's published checksum.
+#   upstream: https://repo-default.voidlinux.org/live/20250202/void-aarch64-ROOTFS-20250202.tar.xz
+url    = "https://genmirror.peacockos.org/flavors/stable/aarch64/void-base.tar.xz"
+sha256 = "01a30f17ae06d4d5b322cd579ca971bc479e02cc284ec1e5a4255bea6bac3ce6"
+
+[[stage]]
+id          = "fetch-base"
+title       = "Downloading the Void base"
+description = "Fetching and digest-verifying the Void Linux aarch64 rootfs archive."
+script      = "fetch-base.sh"
+
+[[stage]]
+id          = "extract-base"
+title       = "Extracting the Void base"
+description = "Unpacking the base into /flavors/void and recording the active flavor."
+requires    = ["fetch-base"]
+script      = "extract-base.sh"
+
+[[stage]]
+id          = "prep-base"
+title       = "Preparing the base"
+description = "Installing the runit guest-ready service so the flavor can boot as a guest."
+requires    = ["extract-base"]
+script      = "prep-base.sh"

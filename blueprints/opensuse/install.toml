@@ -1,0 +1,55 @@
+# openSUSE Tumbleweed INSTALL blueprint (declarative). Brings up the openSUSE FLAVOR base. This TOML
+# only DECLARES — the archive + its digest, and the ordered steps (each naming a sig-verified shell
+# script shipped alongside it in blueprints/<channel>/opensuse/). PRP partitions/mounts the target
+# ($ANS_target), installs the Peacock base layer + bootloader (mechanism), and runs these steps via
+# the runner, which provides: $ANS_target / $ANS_flavor / $ANS_arch, run_in_target,
+# bp_log/bp_progress/bp_fail, and $BP_ARCHIVE_URL / $BP_ARCHIVE_SHA256 from [archive].
+#
+# NOTE on $ROOT during the install phase: it is the *Peacock base*, not the flavor, so run_in_target
+# is useless here — these scripts work on $ANS_target/flavors/$ANS_flavor directly.
+
+schema = 1
+kind   = "install"
+flavor = "opensuse"
+title  = "openSUSE Tumbleweed base install"
+
+# openSUSE Tumbleweed aarch64 **system-container** rootfs from the linuxcontainers image server.
+# Chosen over the appliances tarball on download.opensuse.org because this one is a plain FHS root
+# (./bin ./etc ./usr …) with a full systemd, and — importantly — its /etc/zypp/repos.d already
+# points at the ports/aarch64 repos, so zypper works in the chroot with no repo surgery.
+#
+# sha256 below is the published one from that build's SHA256SUMS, re-checked against a local
+# `sha256sum` of the downloaded file.
+#
+# CAVEAT — the image server keeps only the ~3 most recent dated builds, and Tumbleweed rolls, so
+# this dated path 404s within days. Refresh url+sha256 together from
+#   https://images.linuxcontainers.org/images/opensuse/tumbleweed/arm64/default/   (pick a build,
+#   read its SHA256SUMS, take the `rootfs.tar.xz` line) — or mirror this tarball to genmirror and
+# point the url there for a stable pin.
+[archive]
+# Mirrored onto genmirror 2026-07-31 from the upstream build below, because that upstream
+# path is pruned/rotated and would 404 within days (see tools/mirror-flavor-rootfs.sh).
+# The bytes — and therefore the sha256 — are identical to upstream's published checksum.
+#   upstream: https://images.linuxcontainers.org/images/opensuse/tumbleweed/arm64/default/20260731_04%3A20/rootfs.tar.xz
+url    = "https://genmirror.peacockos.org/flavors/stable/aarch64/opensuse-base.tar.xz"
+sha256 = "f72b5d7c291f96a22c32d78eb98a823f82475bdaeda1524cf1b3be1e47a1d6f8"
+
+[[stage]]
+id          = "fetch-base"
+title       = "Downloading the openSUSE base"
+description = "Fetching and digest-verifying the openSUSE Tumbleweed base rootfs archive."
+script      = "fetch-base.sh"
+
+[[stage]]
+id          = "extract-base"
+title       = "Extracting the openSUSE base"
+description = "Unpacking the base into /flavors/opensuse and recording the active flavor."
+requires    = ["fetch-base"]
+script      = "extract-base.sh"
+
+[[stage]]
+id          = "prep-base"
+title       = "Preparing the base"
+description = "Minimal post-extract prep so the flavor boots as a guest; first-run setup is the OOBE."
+requires    = ["extract-base"]
+script      = "prep-base.sh"

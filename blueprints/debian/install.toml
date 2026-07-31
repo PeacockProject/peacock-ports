@@ -1,0 +1,54 @@
+# Debian INSTALL blueprint (declarative). Brings up the Debian FLAVOR base. This TOML only DECLARES —
+# the archive + its digest, and the ordered steps (each naming a sig-verified shell script shipped
+# alongside it in blueprints/<channel>/debian/). PRP partitions/mounts the target ($ANS_target),
+# installs the Peacock base layer + bootloader (mechanism), and runs these steps via the runner,
+# which provides: $ANS_target / $ANS_flavor / $ANS_arch, bp_log/bp_progress/bp_fail, $BP_WORK, and
+# $BP_ARCHIVE_URL / $BP_ARCHIVE_SHA256 from [archive].
+#
+# In the INSTALL phase $ROOT is the Peacock BASE, not the flavor — run_in_target would chroot into
+# the wrong tree, so every script below addresses the flavor by path ($ANS_target/flavors/$ANS_flavor).
+
+schema = 1
+kind   = "install"
+flavor = "debian"
+title  = "Debian base install"
+
+# Debian 13 "trixie" (current stable), arm64, from the Linux Containers image server. We take the
+# "default" variant deliberately: it is a SYSTEM-container image and therefore ships a full systemd
+# at usr/lib/systemd/systemd — which is what peacock-init detects as the guest init and what
+# prp-install's apply_flavor_glue hooks the flavor-ready signal into. A Docker-style Debian base
+# (debuerreotype) has no init at all and would be declared hung after 90 s.
+#
+# The digest is the published SHA256SUMS entry for this exact dated build, re-checked by downloading
+# the tarball and running sha256sum. Dated path rather than a rolling one so the digest stays true.
+#
+# MAINTENANCE: images.linuxcontainers.org prunes to the last ~3 daily builds, so this URL 404s
+# within days. Mirror the tarball onto genmirror (as the arch blueprint does) and refresh
+# url + sha256 together.
+[archive]
+# Mirrored onto genmirror 2026-07-31 from the upstream build below, because that upstream
+# path is pruned/rotated and would 404 within days (see tools/mirror-flavor-rootfs.sh).
+# The bytes — and therefore the sha256 — are identical to upstream's published checksum.
+#   upstream: https://images.linuxcontainers.org/images/debian/trixie/arm64/default/20260731_05%3A24/rootfs.tar.xz
+url    = "https://genmirror.peacockos.org/flavors/stable/aarch64/debian-base.tar.xz"
+sha256 = "746a2622f47ad2c5aa657c4789beb143b044d208b2f830c71f71821deb10cee1"
+
+[[stage]]
+id          = "fetch-base"
+title       = "Downloading the Debian base"
+description = "Fetching and digest-verifying the Debian base rootfs archive."
+script      = "fetch-base.sh"
+
+[[stage]]
+id          = "extract-base"
+title       = "Extracting the Debian base"
+description = "Unpacking the base into /flavors/debian and recording the active flavor."
+requires    = ["fetch-base"]
+script      = "extract-base.sh"
+
+[[stage]]
+id          = "prep-base"
+title       = "Preparing the base"
+description = "Minimal post-extract prep so the flavor boots as a guest; first-run setup is the OOBE."
+requires    = ["extract-base"]
+script      = "prep-base.sh"

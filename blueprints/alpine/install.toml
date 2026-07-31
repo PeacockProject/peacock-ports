@@ -1,0 +1,47 @@
+# Alpine INSTALL blueprint (declarative). Brings up the Alpine FLAVOR base. This TOML only
+# DECLARES — the archive + its digest, and the ordered steps (each naming a sig-verified shell
+# script shipped alongside it in blueprints/<channel>/alpine/). PRP partitions/mounts the target,
+# installs the Peacock base layer + bootloader (mechanism), and runs these steps via the runner,
+# which provides: $ANS_target / $ANS_flavor / $ANS_arch, bp_log/bp_progress/bp_fail, $BP_WORK, and
+# $BP_ARCHIVE_URL / $BP_ARCHIVE_SHA256 from [archive].
+#
+# NOTE — in the INSTALL phase $ROOT is the PEACOCK BASE, not this flavor, so run_in_target is
+# useless here; the scripts below address the flavor root by path ($ANS_target/flavors/$ANS_flavor).
+
+schema = 1
+kind   = "install"
+flavor = "alpine"
+title  = "Alpine base install"
+
+# Alpine's own aarch64 mini rootfs, pinned to an exact patch release rather than "latest-stable":
+# latest-stable rotates on every point release, which would silently invalidate the digest below.
+# Alpine keeps every patch tarball in the release directory forever, so a pinned URL stays live.
+# sha256 is Alpine's published alpine-minirootfs-3.24.1-aarch64.tar.gz.sha256, independently
+# confirmed by sha256sum on the downloaded tarball.
+[archive]
+# Mirrored onto genmirror 2026-07-31 from the upstream build below, because that upstream
+# path is pruned/rotated and would 404 within days (see tools/mirror-flavor-rootfs.sh).
+# The bytes — and therefore the sha256 — are identical to upstream's published checksum.
+#   upstream: https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/aarch64/alpine-minirootfs-3.24.1-aarch64.tar.gz
+url    = "https://genmirror.peacockos.org/flavors/stable/aarch64/alpine-base.tar.gz"
+sha256 = "f55a90f69052c5bd6f92cb09a8f47065970830b194c917a006fb94028e721259"
+
+[[stage]]
+id          = "fetch-base"
+title       = "Downloading the Alpine base"
+description = "Fetching and digest-verifying the Alpine mini rootfs archive."
+script      = "fetch-base.sh"
+
+[[stage]]
+id          = "extract-base"
+title       = "Extracting the Alpine base"
+description = "Unpacking the base into /flavors/alpine and recording the active flavor."
+requires    = ["fetch-base"]
+script      = "extract-base.sh"
+
+[[stage]]
+id          = "prep-base"
+title       = "Preparing the base"
+description = "Installing OpenRC and the guest-ready signal so the flavor can boot as a guest."
+requires    = ["extract-base"]
+script      = "prep-base.sh"

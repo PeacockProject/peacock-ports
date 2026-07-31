@@ -1,0 +1,55 @@
+# Kali INSTALL blueprint (declarative). Brings up the Kali Linux FLAVOR base. This TOML only
+# DECLARES — the archive + its digest, and the ordered steps (each naming a sig-verified shell
+# script shipped alongside it in blueprints/<channel>/kali/). PRP partitions/mounts the target
+# ($ANS_target), installs the Peacock base layer + bootloader (mechanism), and runs these steps via
+# the runner, which provides: $ANS_target / $ANS_flavor / $ANS_arch, bp_log/bp_progress/bp_fail,
+# $BP_WORK, and $BP_ARCHIVE_URL / $BP_ARCHIVE_SHA256 from [archive].
+#
+# In the INSTALL phase $ROOT is the Peacock BASE, not the flavor — run_in_target would chroot into
+# the wrong tree, so every script below addresses the flavor by path ($ANS_target/flavors/$ANS_flavor).
+
+schema = 1
+kind   = "install"
+flavor = "kali"
+title  = "Kali base install"
+
+# Kali is rolling, so there is no release directory — the Linux Containers image server publishes it
+# as kali/current, and the dated build directory below is what pins it (this one is kali-rolling
+# 2026.3). We take the "default" variant deliberately: it is a SYSTEM-container image and therefore
+# ships a full systemd at usr/lib/systemd/systemd, which is what peacock-init detects as the guest
+# init and what prp-install's apply_flavor_glue hooks the flavor-ready signal into. Kali's own
+# NetHunter/WSL rootfs tarballs are chroot payloads with no init and would be declared hung.
+#
+# The digest is the published SHA256SUMS entry for this exact dated build, re-checked by downloading
+# the tarball and running sha256sum.
+#
+# MAINTENANCE: images.linuxcontainers.org prunes to the last ~3 daily builds, so this URL 404s
+# within days. Mirror the tarball onto genmirror (as the arch blueprint does) and refresh
+# url + sha256 together.
+[archive]
+# Mirrored onto genmirror 2026-07-31 from the upstream build below, because that upstream
+# path is pruned/rotated and would 404 within days (see tools/mirror-flavor-rootfs.sh).
+# The bytes — and therefore the sha256 — are identical to upstream's published checksum.
+#   upstream: https://images.linuxcontainers.org/images/kali/current/arm64/default/20260731_17%3A24/rootfs.tar.xz
+url    = "https://genmirror.peacockos.org/flavors/stable/aarch64/kali-base.tar.xz"
+sha256 = "a1600081310ffa1d995663c44a54ec2d01ac2852f1a0848f3790d380be4046b9"
+
+[[stage]]
+id          = "fetch-base"
+title       = "Downloading the Kali base"
+description = "Fetching and digest-verifying the Kali base rootfs archive."
+script      = "fetch-base.sh"
+
+[[stage]]
+id          = "extract-base"
+title       = "Extracting the Kali base"
+description = "Unpacking the base into /flavors/kali and recording the active flavor."
+requires    = ["fetch-base"]
+script      = "extract-base.sh"
+
+[[stage]]
+id          = "prep-base"
+title       = "Preparing the base"
+description = "Minimal post-extract prep so the flavor boots as a guest; first-run setup is the OOBE."
+requires    = ["extract-base"]
+script      = "prep-base.sh"

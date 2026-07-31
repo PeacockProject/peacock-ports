@@ -1,0 +1,99 @@
+# Alpine CONFIGURE blueprint (declarative). First-boot setup, run by the base OOBE (and the
+# builder) against ROOT=/flavors/alpine. This TOML only DECLARES: what to ASK (fields), the step
+# descriptions, and a sig-verified script (shipped in blueprints/<channel>/alpine/) to run for each
+# step. The runner provides run_in_target, $ANS_<key> per captured answer, and
+# bp_log/bp_progress/bp_fail.
+#
+# Same stages, keys, labels and dropdown options as every other flavor so the wizard UX is uniform;
+# only the scripts behind them are Alpine-specific (apk, OpenRC, doas, musl).
+
+schema = 1
+kind   = "oobe"
+flavor = "alpine"
+title  = "Alpine (PeacockOS)"
+
+[[stage]]
+id          = "account"
+title       = "Create your account"
+description = "Your login user and password (applied immediately, never stored)."
+script      = "account.sh"
+
+  [[stage.field]]
+  key      = "user"
+  type     = "text"
+  label    = "USERNAME"
+  placeholder = "e.g. emre"
+  validate = "^[a-z_][a-z0-9_-]*$"
+  required = true
+
+  [[stage.field]]
+  key      = "pass"
+  type     = "password"
+  label    = "PASSWORD"
+  required = true
+
+[[stage]]
+id          = "hostname"
+title       = "Name this device"
+description = "The network name for this device."
+script      = "hostname.sh"
+
+  [[stage.field]]
+  key      = "host"
+  type     = "text"
+  label    = "HOSTNAME"
+  default  = "peacock"
+  validate = "^[a-z0-9][a-z0-9-]{0,62}$"
+  required = true
+
+[[stage]]
+id          = "timezone"
+title       = "Set your timezone"
+description = "Your local timezone (Region/City)."
+requires    = ["account"]
+script      = "timezone.sh"
+
+  [[stage.field]]
+  key         = "timezone"
+  type        = "text"
+  label       = "TIMEZONE"
+  placeholder = "Region/City — e.g. Europe/Istanbul"
+  default     = "UTC"
+  validate    = "^[A-Za-z]+/[A-Za-z_+-]+$|^UTC$"
+  required    = true
+
+[[stage]]
+id          = "locale"
+title       = "Set your language"
+description = "Your system locale."
+requires    = ["account"]
+script      = "locale.sh"
+
+  [[stage.field]]
+  key     = "locale"
+  type    = "dropdown"
+  label   = "LOCALE"
+  options = ["en_US.UTF-8","en_GB.UTF-8","de_DE.UTF-8","fr_FR.UTF-8","es_ES.UTF-8","tr_TR.UTF-8","ru_RU.UTF-8","zh_CN.UTF-8","ja_JP.UTF-8"]
+  default = "en_US.UTF-8"
+
+[[stage]]
+id          = "desktop"
+title       = "Choose a desktop"
+description = "A desktop environment + login manager (installed from the network)."
+requires    = ["account"]
+script      = "desktop.sh"
+
+  [[stage.field]]
+  key     = "desktop"
+  type    = "dropdown"
+  label   = "DESKTOP"
+  options = ["none","XFCE","KDE Plasma","GNOME"]
+  default = "none"
+
+  [[stage.field]]
+  key     = "dm"
+  type    = "dropdown"
+  label   = "LOGIN MANAGER"
+  options = ["none","SDDM","LightDM"]
+  default = "none"
+  when    = "desktop != none"

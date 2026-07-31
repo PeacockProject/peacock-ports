@@ -1,7 +1,35 @@
 # Available PeacockOS flavors — fetched (verified) by the installer to populate the flavor list.
 # Adding a flavor = publish its <id>.toml blueprint + an entry here. No client/PRP rebuild needed.
+#
+# `name` is what the user sees; the installer slugs it (`tr 'A-Z ' 'a-z-'`) to derive the blueprint
+# directory and /flavors/<dir>, so slug(name) MUST equal id. Prefer single-word names — "Kali Linux"
+# would slug to kali-linux and miss the kali/ directory.
 schema = 1
 
 [[flavor]]
 id   = "arch"
 name = "Arch"
+
+[[flavor]]
+id   = "debian"
+name = "Debian"
+
+[[flavor]]
+id   = "fedora"
+name = "Fedora"
+
+[[flavor]]
+id   = "opensuse"
+name = "openSUSE"
+
+[[flavor]]
+id   = "kali"
+name = "Kali"
+
+[[flavor]]
+id   = "alpine"
+name = "Alpine"
+
+[[flavor]]
+id   = "void"
+name = "Void"
