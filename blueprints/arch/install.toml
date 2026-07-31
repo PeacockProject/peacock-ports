@@ -2,7 +2,7 @@
 # the archive + its digest, and the ordered steps (each naming a sig-verified shell script shipped
 # alongside it in blueprints/<channel>/arch/). PRP partitions/mounts the target ($ANS_target),
 # installs the Peacock base layer + bootloader (mechanism), and runs these steps via the runner,
-# which provides: $ANS_target / $ANS_flavor / $ANS_init / $ANS_device / $ANS_arch, run_in_target,
+# which provides: $ANS_target / $ANS_flavor / $ANS_device / $ANS_arch, run_in_target,
 # bp_log/bp_progress/bp_fail, and $BP_ARCHIVE_URL / $BP_ARCHIVE_SHA256 from [archive].
 
 schema = 1
