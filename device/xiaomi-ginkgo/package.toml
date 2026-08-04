@@ -4,14 +4,13 @@ version = "1.0.0"
 description = "Xiaomi Redmi Note 8 (ginkgo / SM6125) device package"
 # The device layer owns the kernel — flavors never ship or install one.
 #
-# firmware-xiaomi-ginkgo is deliberately ABSENT: the ginkgo vendor blobs
-# (modem, adsp, venus, a610 zap, qup, ath10k board data, qca bluetooth, novatek
-# touch) are Qualcomm's, Xiaomi's and Novatek's, and no licence permits
-# redistributing them. Extract them from your own device with
-#   https://github.com/PeacockProject/ginkgo-firmware
-# Without them the phone still boots, but there is no modem, wifi, bluetooth,
-# hardware video decode, touch, or GPU out of secure mode.
-depends = ["linux-xiaomi-ginkgo"]
+# firmware-xiaomi-ginkgo carries NO blobs. The ginkgo vendor firmware (modem,
+# adsp, venus, a610 zap, qup, ath10k board data, qca bluetooth, novatek touch)
+# is Qualcomm's, Xiaomi's and Novatek's with no redistribution licence — so that
+# package ships only an extraction script, and its post-install hook pulls the
+# firmware off this device's own stock partitions, which the install never
+# touches. Nothing is redistributed.
+depends = ["linux-xiaomi-ginkgo", "firmware-xiaomi-ginkgo"]
 
 [install]
 layout = "system"

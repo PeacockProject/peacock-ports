@@ -1,0 +1,31 @@
+# firmware-xiaomi-ginkgo — vendor firmware for the Redmi Note 8, WITHOUT
+# redistributing it.
+#
+# The ginkgo blobs (modem, adsp, venus, a610 zap, qupv3fw, ath10k board data,
+# qca bluetooth, novatek touch) belong to Qualcomm, Xiaomi and Novatek and no
+# licence permits shipping them. But they are already ON the phone, and a
+# PeacockOS install never touches the stock /vendor, /bluetooth or modem
+# partitions — it installs into a nested GPT inside a container partition. So
+# this package carries NO firmware at all: it ships the extraction script and
+# its sha256 manifest, and a post-install hook pulls the blobs out of the
+# device's own partitions into /lib/firmware.
+#
+# Nothing is ever distributed; the owner's firmware is copied on the owner's
+# hardware. Source is PeacockProject/ginkgo-firmware, which is likewise
+# blob-free.
+
+[package]
+name = "firmware-xiaomi-ginkgo"
+version = "5310347"
+description = "Vendor firmware for Xiaomi Redmi Note 8 (ginkgo) — extracted on-device at install time; contains no redistributed blobs"
+
+[install]
+layout = "system"
+
+[build]
+type = "raw"
+# Pinned to a commit: the builder caches source tarballs by URL hash, so a
+# moving-branch URL would silently serve a stale script.
+source = "https://github.com/PeacockProject/ginkgo-firmware/archive/5310347e93e4da320afe26bd2e8c26744ecc0231.tar.gz"
+checksum = "823b5027b8c338cf66063061a2c03e5763af8c638a8ab010bbb1a48b9f9912db"
+build_deps = ["coreutils"]
