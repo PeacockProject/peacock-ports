@@ -1,0 +1,46 @@
+[device]
+name = "Xiaomi Redmi Note 8"
+architecture = "aarch64"
+soc = "SM6125 (Snapdragon 665, 'trinket')"
+status = "wip"
+flash_method = "fastboot"
+
+# Support matrix surfaced by the peacock-builder GUI. Values: ok | partial | none.
+# Reflects the mainline port at PeacockProject/linux_sm6125_ginkgo. Everything
+# marked ok here needs vendor firmware that is NOT redistributable — extract it
+# with PeacockProject/ginkgo-firmware or these degrade to "none".
+[support]
+touch = "partial"
+touch_note = "Novatek NT36672A. Panel is on SE8/SPI; bring-up in progress."
+gpu = "ok"
+gpu_note = "Adreno 610. Needs the a610 zap shader to leave secure mode."
+wifi = "ok"
+wifi_note = "WCN3990 via ath10k_snoc; firmware is hosted in the modem's protection domain."
+bluetooth = "partial"
+bluetooth_note = "WCN3950 half of the combo chip, hci_qca. Firmware present, lightly tested."
+calls = "partial"
+sms = "partial"
+modem = "ok"
+modem_note = "Registers on LTE, CS+PS attached."
+camrear = "ok"
+camrear_note = "S5KGM1 + S5K4H7 + GC02M1 capture. GC2375H is wired but cannot work here."
+camfront = "ok"
+camfront_note = "OV13858, confirmed with light."
+gps = "none"
+sensors = "ok"
+sensors_note = "Via the sensor DSP over FastRPC; exposed as Linux IIO devices."
+battery = "ok"
+battery_note = "Charge control works; the hardware enforces the limits."
+audio = "ok"
+audio_note = "ADSP + APR transport, LPASS macros."
+
+[boot]
+cmdline = "root=LABEL=ROOT rw console=ttyMSM0,115200 loglevel=7"
+generate_bootimg = true
+
+  [boot.android]
+  page_size = 4096
+  base = 0x00000000
+  kernel_offset = 0x00008000
+  ramdisk_offset = 0x01000000
+  tags_offset = 0x00000100

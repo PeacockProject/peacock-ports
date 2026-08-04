@@ -1,0 +1,20 @@
+[package]
+name = "linux-xiaomi-ginkgo"
+version = "7.2.0.r0"
+description = "Mainline kernel for Xiaomi Redmi Note 8 (ginkgo / SM6125 'trinket')"
+
+[install]
+layout = "system"
+
+[build]
+type = "raw"
+# Pinned to a commit, not the branch: the builder caches source tarballs by URL
+# hash, so a moving-branch URL silently serves a stale tree after a push.
+source = "https://github.com/PeacockProject/linux_sm6125_ginkgo/archive/db3f159aa32c11688ee4873a6218ea113052fee6.tar.gz"
+checksum = "c62a7bd5701513c414eda3fb504f854433fc52c5a2aec30d500a06177e4deeba"
+build_deps = ["base-devel", "bc", "dtc", "kmod", "cpio", "python", "perl", "openssl"]
+use_qemu = false
+# Cross toolchain + CROSS_COMPILE resolve from target_arch + the c-toolchain
+# capability via toolchains.toml — no hardcoded cross packages or prefix.
+target_arch = "aarch64"
+capabilities = ["c-toolchain"]
