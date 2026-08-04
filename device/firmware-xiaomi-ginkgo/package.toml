@@ -1,31 +1,28 @@
-# firmware-xiaomi-ginkgo — vendor firmware for the Redmi Note 8, WITHOUT
-# redistributing it.
+# firmware-xiaomi-ginkgo — vendor firmware for the Redmi Note 8.
 #
-# The ginkgo blobs (modem, adsp, venus, a610 zap, qupv3fw, ath10k board data,
-# qca bluetooth, novatek touch) belong to Qualcomm, Xiaomi and Novatek and no
-# licence permits shipping them. But they are already ON the phone, and a
-# PeacockOS install never touches the stock /vendor, /bluetooth or modem
-# partitions — it installs into a nested GPT inside a container partition. So
-# this package carries NO firmware at all: it ships the extraction script and
-# its sha256 manifest, and a post-install hook pulls the blobs out of the
-# device's own partitions into /lib/firmware.
+# Ships the blobs, mirrored on genmirror. They are Qualcomm's, Xiaomi's and
+# Novatek's; no licence grants redistribution, and this follows the same
+# practice as firmware-xiaomi-daisy. The blob tarball is hosted on genmirror
+# rather than GitHub deliberately — the public repo
+# (PeacockProject/ginkgo-firmware) stays blob-free and carries only the
+# extraction script, manifest and hardware notes.
 #
-# Nothing is ever distributed; the owner's firmware is copied on the owner's
-# hardware. Source is PeacockProject/ginkgo-firmware, which is likewise
-# blob-free.
+# The extractor is installed alongside the blobs at
+# /usr/share/peacock/firmware/ginkgo/. It matters because some of this firmware
+# is ROM-specific: the a610 zap shader's .mdt and b01 are signature segments, so
+# a re-signed vendor image changes them and the GPU will refuse to leave secure
+# mode with the wrong copy. On a different ROM, re-extract from your own device.
 
 [package]
 name = "firmware-xiaomi-ginkgo"
-version = "5310347"
-description = "Vendor firmware for Xiaomi Redmi Note 8 (ginkgo) — extracted on-device at install time; contains no redistributed blobs"
+version = "20260804"
+description = "Firmware blobs for Xiaomi Redmi Note 8 (ginkgo / SM6125): modem, ADSP, Venus, Adreno 610 zap, QUP, ath10k board data, QCA Bluetooth, Novatek touch"
 
 [install]
 layout = "system"
 
 [build]
 type = "raw"
-# Pinned to a commit: the builder caches source tarballs by URL hash, so a
-# moving-branch URL would silently serve a stale script.
-source = "https://github.com/PeacockProject/ginkgo-firmware/archive/5310347e93e4da320afe26bd2e8c26744ecc0231.tar.gz"
-checksum = "823b5027b8c338cf66063061a2c03e5763af8c638a8ab010bbb1a48b9f9912db"
+source = "https://genmirror.peacockos.org/firmware/stable/aarch64/ginkgo-firmware.tar.gz"
+checksum = "2dec2ce05ad0a2897c65a18a033e01bc1d5fbb1dec062f2f65efd15b6e971afa"
 build_deps = ["coreutils"]
