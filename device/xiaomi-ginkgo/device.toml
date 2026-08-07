@@ -1,46 +1,53 @@
 [device]
 name = "Xiaomi Redmi Note 8"
 architecture = "aarch64"
-soc = "SM6125 (Snapdragon 665, 'trinket')"
-status = "wip"
-flash_method = "fastboot"
+soc = "sm6125"
+status = "testing"
+flash_method = "fastboot-bootimg"
 
 # Support matrix surfaced by the peacock-builder GUI. Values: ok | partial | none.
-# Reflects the mainline port at PeacockProject/linux_sm6125_ginkgo. Everything
-# marked ok here needs vendor firmware that is NOT redistributable — extract it
-# with PeacockProject/ginkgo-firmware or these degrade to "none".
+#
+# Sourced from the ginkgo tree's own "flesh out the board" commit, which
+# enumerates what it brought up, and from the DTS comments. Anything the tree
+# does not claim is recorded as none rather than guessed — revise from real
+# on-device testing, not from this file's optimism.
 [support]
-touch = "partial"
-touch_note = "Novatek NT36672A. Panel is on SE8/SPI; bring-up in progress."
+touch = "ok"
 gpu = "ok"
-gpu_note = "Adreno 610. Needs the a610 zap shader to leave secure mode."
 wifi = "ok"
-wifi_note = "WCN3990 via ath10k_snoc; firmware is hosted in the modem's protection domain."
-bluetooth = "partial"
-bluetooth_note = "WCN3950 half of the combo chip, hci_qca. Firmware present, lightly tested."
-calls = "partial"
-sms = "partial"
-modem = "ok"
-modem_note = "Registers on LTE, CS+PS attached."
-camrear = "ok"
-camrear_note = "S5KGM1 + S5K4H7 + GC02M1 capture. GC2375H is wired but cannot work here."
-camfront = "ok"
-camfront_note = "OV13858, confirmed with light."
+bluetooth = "ok"
+calls = "none"
+calls_note = "Modem authenticates and runs QMI, but no call audio path is wired up yet."
+sms = "none"
+modem = "partial"
+modem_note = "MPSS boots, authenticates and serves QMI with rmtfs; auto_boot is off and it is not required for Wi-Fi."
+camrear = "none"
+camrear_note = "Sensor drivers exist in-tree; no capture pipeline validated."
+camfront = "none"
 gps = "none"
-sensors = "ok"
-sensors_note = "Via the sensor DSP over FastRPC; exposed as Linux IIO devices."
+sensors = "none"
+sensors_note = "Deliberately absent: the sensors hang off serial engines owned by the sensor DSP, not the application processor."
 battery = "ok"
-battery_note = "Charge control works; the hardware enforces the limits."
-audio = "ok"
-audio_note = "ADSP + APR transport, LPASS macros."
+battery_note = "PMI632 charger + generic-adc-battery."
+audio = "partial"
+audio_note = "WCD937x and MAX98937 path described; playback not verified end to end."
 
 [boot]
-cmdline = "root=LABEL=ROOT rw console=ttyMSM0,115200 loglevel=7"
+cmdline = "console=ttyMSM0,115200n8 loglevel=4"
 generate_bootimg = true
 
-  [boot.android]
-  page_size = 4096
-  base = 0x00000000
-  kernel_offset = 0x00008000
-  ramdisk_offset = 0x01000000
-  tags_offset = 0x00000100
+# Geometry from the ginkgo recovery device trees. Note the 4096 page size and
+# the zero base — SM6125's ABL applies its own load addresses.
+[boot.android]
+base = "0x00000000"
+page_size = 4096
+kernel_offset = "0x00008000"
+ramdisk_offset = "0x01000000"
+second_offset = "0x00f00000"
+tags_offset = "0x00000100"
+
+[quirks]
+keep_fb_refresher_with_dm = false
+xorg_force_vt1 = true
+use_fb_refresher = false
+legacy_rootfs_ext4 = false

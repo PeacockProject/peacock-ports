@@ -1,0 +1,122 @@
+[package]
+name = "linux-xiaomi-ginkgo-prp"
+version = "7.2.rc2.r0"
+description = "PRP-focused mainline kernel for Xiaomi Redmi Note 8 (ginkgo / sm6125)"
+
+[build]
+source = "https://github.com/PeacockProject/linux_sm6125_ginkgo/archive/db3f159aa32c11688ee4873a6218ea113052fee6.tar.gz"
+checksum = "c62a7bd5701513c414eda3fb504f854433fc52c5a2aec30d500a06177e4deeba"
+build_deps = ["base-devel", "bc", "dtc", "python", "perl", "openssl"]
+use_qemu = false
+# Cross toolchain + CROSS_COMPILE resolve from target_arch + the c-toolchain
+# capability via toolchains.toml — no hardcoded cross packages or prefix.
+target_arch = "aarch64"
+capabilities = ["c-toolchain"]
+
+kernel_config = "config-prp"
+
+script = """
+set -e
+
+# The config is CHECKED IN (config-prp), not regenerated. The previous shape ran
+# `make defconfig` plus ~90 `scripts/config` edits on every build, which rewrote
+# .config from scratch each time; kbuild then correctly saw most of the tree as
+# stale and rebuilt it. With a stable file the build dir stays warm and a
+# one-symbol change costs minutes instead of ~25.
+#
+# That trades away the "never rots against a fast-moving branch" property the
+# generated config had. The guard is the hard assert at the bottom: if a rebase
+# renames or hides a symbol PRP depends on, the build fails loudly here rather
+# than producing a kernel that boots to a bootloader framebuffer and nothing
+# else — which is exactly the failure this port already shipped once.
+#
+# To regenerate from scratch after a big rebase:
+#   make ARCH=arm64 defconfig && ./scripts/config --disable MODULES ... && \
+#     make ARCH=arm64 olddefconfig && cp .config <port>/config-prp
+echo "Using checked-in PRP config (${KERNEL_CONFIG:-config-prp})..."
+cp "${KERNEL_CONFIG:-config-prp}" .config
+
+# Strip compiler-capability symbols the imported config baked in; they must be
+# re-derived for the toolchain actually building here.
+sed -i \
+  -e '/^CONFIG_CC_VERSION_TEXT=/d' \
+  -e '/^CONFIG_CC_IS_/d' \
+  -e '/^CONFIG_GCC_VERSION=/d' \
+  -e '/^CONFIG_CLANG_VERSION=/d' \
+  -e '/^CONFIG_AS_IS_/d' \
+  -e '/^CONFIG_AS_VERSION=/d' \
+  -e '/^CONFIG_LD_IS_/d' \
+  -e '/^CONFIG_LD_VERSION=/d' \
+  -e '/^CONFIG_LLD_VERSION=/d' \
+  -e '/^CONFIG_CC_HAS_/d' \
+  -e '/^CONFIG_CC_CAN_/d' \
+  -e '/^CONFIG_TOOLS_SUPPORT_RELR=/d' \
+  .config
+
+yes "" | make ARCH=${ARCH:-arm64} olddefconfig
+
+if grep -q '^CONFIG_MODULES=y' .config 2>/dev/null; then
+  echo "Error: CONFIG_MODULES is enabled; PRP expects an all-built-in kernel"
+  exit 1
+fi
+
+# Hard gate. Everything here has already cost a debug cycle on real hardware:
+#
+#   SM_GCC_6125            no gcc -> every consumer (spi/touch, dwc3/usb, sdhci,
+#                          gpu, mdss) sits at -EPROBE_DEFER and only the
+#                          bootloader's simple-framebuffer works
+#   REGULATOR_QCOM_LCDB    PMI632 LCD bias (lab/ibb); without it spi0.0 waits on
+#                          .../lcdb@ec00/regulators/ncp forever -> no touch
+#   TYPEC_QCOM_PMIC        drives usb-role-switch into peripheral -> no RNDIS
+#   DRM_FBDEV_EMULATION    LVGL needs /dev/fb0
+#   the partition/fs set   what prp/scripts/check-kernel-config.sh demands
+MISSING=""
+for sym in CONFIG_SM_GCC_6125 CONFIG_REGULATOR_QCOM_LCDB \
+           CONFIG_TYPEC_QCOM_PMIC CONFIG_EFI_PARTITION CONFIG_MSDOS_PARTITION \
+           CONFIG_EXT4_FS CONFIG_VFAT_FS CONFIG_BLK_DEV_LOOP CONFIG_BLK_DEV_DM \
+           CONFIG_DEVTMPFS CONFIG_DRM_SIMPLEDRM CONFIG_DRM_FBDEV_EMULATION \
+           CONFIG_INPUT_EVDEV CONFIG_INPUT_PM8941_PWRKEY \
+           CONFIG_TOUCHSCREEN_NT36672A CONFIG_SPI_QCOM_GENI \
+           CONFIG_USB_CONFIGFS_RNDIS \
+           CONFIG_ATH10K_SNOC; do
+  grep -q "^${sym}=y$" .config || MISSING="$MISSING $sym"
+done
+if [ -n "$MISSING" ]; then
+  echo "Error: required PRP symbols missing from .config:$MISSING"
+  echo "A rebase may have renamed or re-parented them; fix config-prp, do not"
+  echo "silently drop the symbol."
+  exit 1
+fi
+
+MAKE_ARGS="ARCH=${ARCH:-arm64}"
+if [ -n "${CROSS_COMPILE:-}" ]; then
+  MAKE_ARGS="$MAKE_ARGS CROSS_COMPILE=${CROSS_COMPILE}"
+fi
+
+JOBS="${PEACOCK_JOBS:-4}"
+if [ -z "$JOBS" ] || [ "$JOBS" -lt 1 ]; then
+  JOBS=1
+fi
+
+DTB_OUT="arch/arm64/boot/dts/qcom/sm6125-xiaomi-ginkgo.dtb"
+if [ ! -f "arch/arm64/boot/dts/qcom/sm6125-xiaomi-ginkgo.dts" ]; then
+  echo "Error: ginkgo DTB source not found"
+  exit 1
+fi
+
+echo "Compiling PRP kernel Image.gz + ginkgo DTB only..."
+make $MAKE_ARGS -j"$JOBS" Image.gz qcom/sm6125-xiaomi-ginkgo.dtb
+
+mkdir -p stage/boot/dtbs/qcom
+cp "$DTB_OUT" stage/boot/dtbs/qcom/
+
+# Qualcomm's ABL has no lk2nd on SM6125 and does not patch a DTB handed to it
+# separately, so the DTB rides APPENDED to the kernel. ABL finds it by matching
+# the qcom,msm-id / qcom,board-id the ginkgo DTS carries for this purpose.
+# prp/scripts/build-bootimg.sh therefore passes no --dtb and packs this zImage
+# as-is; keep the concatenation order (kernel first) if you touch this.
+cat arch/arm64/boot/Image.gz "$DTB_OUT" > zImage
+
+cp zImage stage/zImage
+cp .config stage/boot/config
+"""

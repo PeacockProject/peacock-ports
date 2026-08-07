@@ -1,19 +1,41 @@
 [package]
 name = "device-xiaomi-ginkgo"
 version = "1.0.0"
-description = "Xiaomi Redmi Note 8 (ginkgo / SM6125) device package"
-# The device layer owns the kernel — flavors never ship or install one.
-#
-# firmware-xiaomi-ginkgo carries NO blobs. The ginkgo vendor firmware (modem,
-# adsp, venus, a610 zap, qup, ath10k board data, qca bluetooth, novatek touch)
-# is Qualcomm's, Xiaomi's and Novatek's with no redistribution licence — so that
-# package ships only an extraction script, and its post-install hook pulls the
-# firmware off this device's own stock partitions, which the install never
-# touches. Nothing is redistributed.
-depends = ["linux-xiaomi-ginkgo", "firmware-xiaomi-ginkgo"]
-
-[install]
-layout = "system"
+description = "Xiaomi Redmi Note 8 (ginkgo) device package"
 
 [build]
-type = "raw"
+# firmware-xiaomi-ginkgo ships no blobs: its post-install hook mounts the
+# device's own vendor/bluetooth/modem partitions and extracts them into
+# /lib/firmware. That works here because this package is installed ON the phone.
+# It is fail-soft — a wiped vendor partition leaves /lib/firmware empty and the
+# device still boots, just without modem, Wi-Fi, BT, video, touch or GPU.
+dependencies = ["linux-firmware", "linux-xiaomi-ginkgo", "firmware-xiaomi-ginkgo"]
+dependencies_systemd = ["base"]
+dependencies_openrc = [
+    "filesystem",
+    "glibc",
+    "bash",
+    "coreutils",
+    "util-linux",
+    "openrc",
+    "sysvinit-tools",
+    "procps-ng",
+    "grep",
+    "sed",
+    "gawk",
+    "tar",
+    "pacman",
+    "gcc-libs",
+    "shadow",
+    "psmisc",
+    "iproute2",
+    "iputils",
+    "inetutils",
+    "nano",
+    "dhcpcd",
+    "udev-openrc"
+]
+# No display or touch quirks: the nt36672a-ts driver reports absolute ranges
+# straight from the panel geometry, so libinput needs no calibration matrix
+# here (unlike daisy). Add quirks only once something is observed to be wrong.
+script = "echo 'device-xiaomi-ginkgo installed'"
